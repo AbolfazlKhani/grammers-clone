@@ -36,6 +36,33 @@ const MAX_PARTICIPANT_LIMIT: usize = 200;
 const MAX_PHOTO_LIMIT: usize = 100;
 const KICK_BAN_DURATION: i32 = 60; // in seconds, in case the second request fails
 
+/// A categorized search result item from [`Client::search_peer`].
+#[derive(Debug, Clone)]
+pub enum PeerSearchItem {
+    /// A user from the account's contact list.
+    Contact(Peer),
+    /// A peer from an existing dialog (non-contact user, group, or channel).
+    Dialog(Peer),
+    /// A peer found via global search.
+    Global(Peer),
+}
+
+impl PeerSearchItem {
+    /// Get a reference to the underlying peer.
+    pub fn peer(&self) -> &Peer {
+        match self {
+            Self::Contact(p) | Self::Dialog(p) | Self::Global(p) => p,
+        }
+    }
+
+    /// Unwrap into the underlying peer, discarding the category.
+    pub fn into_peer(self) -> Peer {
+        match self {
+            Self::Contact(p) | Self::Dialog(p) | Self::Global(p) => p,
+        }
+    }
+}
+
 enum ParticipantIterInner {
     Empty,
     Chat {
@@ -405,6 +432,81 @@ impl Client {
                 .map(|chat| Peer::from_raw(self, chat))
                 .find(|peer| peer.id() == PeerId::channel(channel_id)),
         })
+    }
+
+    /// Search for peers (users, groups, channels, bots) by name or username.
+    ///
+    /// Returns a `Vec<PeerSearchItem>` where each item is categorized as:
+    /// - [`PeerSearchItem::Contact`]: a user from your contact list
+    /// - [`PeerSearchItem::Dialog`]: a peer from an existing dialog (non-contact)
+    /// - [`PeerSearchItem::Global`]: a peer found via global search
+    ///
+    /// Found peers are automatically cached to the session for later use.
+    ///
+    /// This method is generally less rate-limited than [`Client::resolve_username`] and can be
+    /// used as a cross-check when `resolve_username` returns `None` to distinguish "username
+    /// does not exist" from "account is silently rate-limited".
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # async fn f(client: grammers_client::Client) -> Result<(), Box<dyn std::error::Error>> {
+    /// use grammers_client::PeerSearchItem;
+    ///
+    /// let results = client.search_peer("username", 5).await?;
+    /// for item in &results {
+    ///     match item {
+    ///         PeerSearchItem::Contact(peer) => println!("Contact: {}", peer.name()),
+    ///         PeerSearchItem::Dialog(peer) => println!("Dialog: {}", peer.name()),
+    ///         PeerSearchItem::Global(peer) => println!("Global: {}", peer.name()),
+    ///     }
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn search_peer(
+        &self,
+        query: &str,
+        limit: usize,
+    ) -> Result<Vec<PeerSearchItem>, InvocationError> {
+        let tl::types::contacts::Found {
+            my_results,
+            results,
+            chats,
+            users,
+        } = match self
+            .invoke(&tl::functions::contacts::Search {
+                q: query.into(),
+                limit: limit as i32,
+            })
+            .await?
+        {
+            tl::enums::contacts::Found::Found(f) => f,
+        };
+
+        let peer_map = self.build_peer_map(users, chats).await;
+
+        let classify_my_result = |peer: Peer| -> PeerSearchItem {
+            match &peer {
+                Peer::User(user) if user.contact() => PeerSearchItem::Contact(peer),
+                _ => PeerSearchItem::Dialog(peer),
+            }
+        };
+
+        let mut items: Vec<PeerSearchItem> = my_results
+            .into_iter()
+            .filter_map(|p| peer_map.get(PeerId::from(p)).cloned())
+            .map(classify_my_result)
+            .collect();
+
+        items.extend(
+            results
+                .into_iter()
+                .filter_map(|p| peer_map.get(PeerId::from(p)).cloned())
+                .map(PeerSearchItem::Global),
+        );
+
+        Ok(items)
     }
 
     /// Fetch full information about the currently logged-in user.
