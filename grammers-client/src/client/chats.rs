@@ -422,15 +422,15 @@ impl Client {
             tl::enums::Peer::User(tl::types::PeerUser { user_id }) => users
                 .into_iter()
                 .map(|user| Peer::from_user(self, user))
-                .find(|peer| peer.id() == PeerId::user(user_id)),
+                .find(|peer| peer.id() == PeerId::user_unchecked(user_id)),
             tl::enums::Peer::Chat(tl::types::PeerChat { chat_id }) => chats
                 .into_iter()
                 .map(|chat| Peer::from_raw(self, chat))
-                .find(|peer| peer.id() == PeerId::chat(chat_id)),
+                .find(|peer| peer.id() == PeerId::chat_unchecked(chat_id)),
             tl::enums::Peer::Channel(tl::types::PeerChannel { channel_id }) => chats
                 .into_iter()
                 .map(|chat| Peer::from_raw(self, chat))
-                .find(|peer| peer.id() == PeerId::channel(channel_id)),
+                .find(|peer| peer.id() == PeerId::channel_unchecked(channel_id)),
         })
     }
 

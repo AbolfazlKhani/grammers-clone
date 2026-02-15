@@ -281,7 +281,7 @@ impl Session for SqliteSession {
                 let subtype = row.get::<Option<i64>>(2)?.map(|s| s as u8);
                 Ok(match peer.kind() {
                     PeerKind::User | PeerKind::UserSelf => PeerInfo::User {
-                        id: PeerId::user(row.get::<i64>(0)?).bare_id(),
+                        id: PeerId::user_unchecked(row.get::<i64>(0)?).bare_id(),
                         auth: row.get::<Option<i64>>(1)?.map(PeerAuth::from_hash),
                         bot: subtype.map(|s| s & PeerSubtype::UserBot as u8 != 0),
                         is_self: subtype.map(|s| s & PeerSubtype::UserSelf as u8 != 0),
@@ -565,7 +565,7 @@ mod tests {
         assert_eq!(session.dc_option(new_dc_option.id), Some(new_dc_option));
 
         assert_eq!(session.peer(PeerId::self_user()).await, None);
-        assert_eq!(session.peer(PeerId::user(1)).await, None);
+        assert_eq!(session.peer(PeerId::user_unchecked(1)).await, None);
         let peer = PeerInfo::User {
             id: 1,
             auth: None,
@@ -574,16 +574,16 @@ mod tests {
         };
         session.cache_peer(&peer).await;
         assert_eq!(session.peer(PeerId::self_user()).await, Some(peer.clone()));
-        assert_eq!(session.peer(PeerId::user(1)).await, Some(peer));
+        assert_eq!(session.peer(PeerId::user_unchecked(1)).await, Some(peer));
 
-        assert_eq!(session.peer(PeerId::channel(1)).await, None);
+        assert_eq!(session.peer(PeerId::channel_unchecked(1)).await, None);
         let peer = PeerInfo::Channel {
             id: 1,
             auth: Some(PeerAuth::from_hash(-1)),
             kind: Some(ChannelKind::Broadcast),
         };
         session.cache_peer(&peer).await;
-        assert_eq!(session.peer(PeerId::channel(1)).await, Some(peer));
+        assert_eq!(session.peer(PeerId::channel_unchecked(1)).await, Some(peer));
 
         assert_eq!(session.updates_state().await, UpdatesState::default());
         session

@@ -6,7 +6,10 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use std::{fmt, ops::Deref as _};
+use std::{
+    fmt,
+    ops::{Deref as _, RangeInclusive},
+};
 
 use grammers_tl_types as tl;
 
@@ -146,6 +149,15 @@ const SELF_USER_ID: PeerId = PeerId(1 << 40);
 /// and channels have a proper constructor for empty already.
 const EMPTY_CHAT_ID: i64 = -1000000000000;
 
+/// https://core.telegram.org/api/bots/ids#user-ids
+const USER_ID_RANGE: RangeInclusive<i64> = 1..=0xffffffffff;
+/// https://core.telegram.org/api/bots/ids#chat-ids
+const CHAT_ID_RANGE: RangeInclusive<i64> = 1..=999999999999;
+/// https://core.telegram.org/api/bots/ids#supergroup-channel-ids
+const SUPERGROUP_AND_CHANNEL_ID_RANGE: RangeInclusive<i64> = 1..=997852516352;
+/// https://core.telegram.org/api/bots/ids#monoforum-ids
+const MONOFORUM_ID_RANGE: RangeInclusive<i64> = 1002147483649..=3000000000000;
+
 impl PeerId {
     /// Creates a peer identity for the currently-logged-in user or bot account.
     ///
@@ -155,32 +167,45 @@ impl PeerId {
     }
 
     /// Creates a peer identity for a user or bot account.
-    pub fn user(id: i64) -> Self {
-        // https://core.telegram.org/api/bots/ids#user-ids
-        if !(1 <= id && id <= 0xffffffffff) {
-            panic!("user ID out of range");
-        }
+    pub fn user(id: i64) -> Option<Self> {
+        USER_ID_RANGE.contains(&id).then_some(Self(id))
+    }
 
+    /// Creates a peer identity for a small group chat.
+    pub fn chat(id: i64) -> Option<Self> {
+        CHAT_ID_RANGE.contains(&id).then_some(Self(-id))
+    }
+
+    /// Creates a peer identity for a broadcast channel, megagroup, gigagroup or monoforum.
+    pub fn channel(id: i64) -> Option<Self> {
+        (SUPERGROUP_AND_CHANNEL_ID_RANGE.contains(&id) || MONOFORUM_ID_RANGE.contains(&id))
+            .then_some(Self(-(1000000000000 + id)))
+    }
+
+    /// Creates a peer identity for a user or bot account.
+    /// Panics if the ID is out of the valid range.
+    #[doc(hidden)]
+    pub fn user_unchecked(id: i64) -> Self {
+        debug_assert!(USER_ID_RANGE.contains(&id), "user ID out of range");
         Self(id)
     }
 
     /// Creates a peer identity for a small group chat.
-    pub fn chat(id: i64) -> Self {
-        // https://core.telegram.org/api/bots/ids#chat-ids
-        if !(1 <= id && id <= 999999999999) {
-            panic!("chat ID out of range");
-        }
-
+    /// Panics if the ID is out of the valid range.
+    #[doc(hidden)]
+    pub fn chat_unchecked(id: i64) -> Self {
+        debug_assert!(CHAT_ID_RANGE.contains(&id), "chat ID out of range");
         Self(-id)
     }
 
     /// Creates a peer identity for a broadcast channel, megagroup, gigagroup or monoforum.
-    pub fn channel(id: i64) -> Self {
-        // https://core.telegram.org/api/bots/ids#supergroup-channel-ids and #monoforum-ids
-        if !((1 <= id && id <= 997852516352) || (1002147483649 <= id && id <= 3000000000000)) {
-            panic!("channel ID out of range");
-        }
-
+    /// Panics if the ID is out of the valid range.
+    #[doc(hidden)]
+    pub fn channel_unchecked(id: i64) -> Self {
+        debug_assert!(
+            (SUPERGROUP_AND_CHANNEL_ID_RANGE.contains(&id) || MONOFORUM_ID_RANGE.contains(&id)),
+            "channel ID out of range"
+        );
         Self(-(1000000000000 + id))
     }
 
@@ -248,9 +273,9 @@ impl PeerInfo {
     /// The returned [`PeerId::kind()`] will never be [`PeerKind::UserSelf`].
     pub fn id(&self) -> PeerId {
         match self {
-            PeerInfo::User { id, .. } => PeerId::user(*id),
-            PeerInfo::Chat { id } => PeerId::chat(*id),
-            PeerInfo::Channel { id, .. } => PeerId::channel(*id),
+            PeerInfo::User { id, .. } => PeerId::user_unchecked(*id),
+            PeerInfo::Chat { id } => PeerId::chat_unchecked(*id),
+            PeerInfo::Channel { id, .. } => PeerId::channel_unchecked(*id),
         }
     }
 
@@ -295,7 +320,7 @@ impl From<tl::types::PeerUser> for PeerId {
 }
 impl<'a> From<&'a tl::types::PeerUser> for PeerId {
     fn from(user: &'a tl::types::PeerUser) -> Self {
-        Self::user(user.user_id)
+        Self::user_unchecked(user.user_id)
     }
 }
 
@@ -307,7 +332,7 @@ impl From<tl::types::PeerChat> for PeerId {
 }
 impl<'a> From<&'a tl::types::PeerChat> for PeerId {
     fn from(chat: &'a tl::types::PeerChat) -> Self {
-        Self::chat(chat.chat_id)
+        Self::chat_unchecked(chat.chat_id)
     }
 }
 
@@ -319,7 +344,7 @@ impl From<tl::types::PeerChannel> for PeerId {
 }
 impl<'a> From<&'a tl::types::PeerChannel> for PeerId {
     fn from(channel: &'a tl::types::PeerChannel) -> Self {
-        Self::channel(channel.channel_id)
+        Self::channel_unchecked(channel.channel_id)
     }
 }
 
@@ -369,7 +394,7 @@ impl From<tl::types::InputPeerUser> for PeerRef {
 impl<'a> From<&'a tl::types::InputPeerUser> for PeerRef {
     fn from(user: &'a tl::types::InputPeerUser) -> Self {
         Self {
-            id: PeerId::user(user.user_id),
+            id: PeerId::user_unchecked(user.user_id),
             auth: PeerAuth::from_hash(user.access_hash),
         }
     }
@@ -384,7 +409,7 @@ impl From<tl::types::InputPeerChat> for PeerRef {
 impl<'a> From<&'a tl::types::InputPeerChat> for PeerRef {
     fn from(chat: &'a tl::types::InputPeerChat) -> Self {
         Self {
-            id: PeerId::chat(chat.chat_id),
+            id: PeerId::chat_unchecked(chat.chat_id),
             auth: PeerAuth::default(),
         }
     }
@@ -399,7 +424,7 @@ impl From<tl::types::InputPeerChannel> for PeerRef {
 impl<'a> From<&'a tl::types::InputPeerChannel> for PeerRef {
     fn from(channel: &'a tl::types::InputPeerChannel) -> Self {
         Self {
-            id: PeerId::channel(channel.channel_id),
+            id: PeerId::channel_unchecked(channel.channel_id),
             auth: PeerAuth::from_hash(channel.access_hash),
         }
     }
@@ -415,7 +440,7 @@ impl<'a> From<&'a tl::types::InputPeerUserFromMessage> for PeerRef {
     fn from(user: &'a tl::types::InputPeerUserFromMessage) -> Self {
         // Not currently willing to make PeerRef significantly larger to accomodate for this uncommon type.
         Self {
-            id: PeerId::user(user.user_id),
+            id: PeerId::user_unchecked(user.user_id),
             auth: PeerAuth::default(),
         }
     }
@@ -431,7 +456,7 @@ impl<'a> From<&'a tl::types::InputPeerChannelFromMessage> for PeerRef {
     fn from(channel: &'a tl::types::InputPeerChannelFromMessage) -> Self {
         // Not currently willing to make PeerRef significantly larger to accomodate for this uncommon type.
         Self {
-            id: PeerId::channel(channel.channel_id),
+            id: PeerId::channel_unchecked(channel.channel_id),
             auth: PeerAuth::default(),
         }
     }
@@ -462,7 +487,7 @@ impl From<tl::types::UserEmpty> for PeerRef {
 impl<'a> From<&'a tl::types::UserEmpty> for PeerRef {
     fn from(user: &'a tl::types::UserEmpty) -> Self {
         Self {
-            id: PeerId::user(user.id),
+            id: PeerId::user_unchecked(user.id),
             auth: PeerAuth::default(),
         }
     }
@@ -480,7 +505,7 @@ impl<'a> From<&'a tl::types::User> for PeerRef {
             id: if user.is_self {
                 PeerId::self_user()
             } else {
-                PeerId::user(user.id)
+                PeerId::user_unchecked(user.id)
             },
             auth: user
                 .access_hash
@@ -518,7 +543,7 @@ impl From<tl::types::ChatEmpty> for PeerRef {
 impl<'a> From<&'a tl::types::ChatEmpty> for PeerRef {
     fn from(chat: &'a tl::types::ChatEmpty) -> Self {
         Self {
-            id: PeerId::chat(chat.id),
+            id: PeerId::chat_unchecked(chat.id),
             auth: PeerAuth::default(),
         }
     }
@@ -533,7 +558,7 @@ impl From<tl::types::Chat> for PeerRef {
 impl<'a> From<&'a tl::types::Chat> for PeerRef {
     fn from(chat: &'a tl::types::Chat) -> Self {
         Self {
-            id: PeerId::chat(chat.id),
+            id: PeerId::chat_unchecked(chat.id),
             auth: PeerAuth::default(),
         }
     }
@@ -548,7 +573,7 @@ impl From<tl::types::ChatForbidden> for PeerRef {
 impl<'a> From<&'a tl::types::ChatForbidden> for PeerRef {
     fn from(chat: &'a tl::types::ChatForbidden) -> Self {
         Self {
-            id: PeerId::chat(chat.id),
+            id: PeerId::chat_unchecked(chat.id),
             auth: PeerAuth::default(),
         }
     }
@@ -563,7 +588,7 @@ impl From<tl::types::Channel> for PeerRef {
 impl<'a> From<&'a tl::types::Channel> for PeerRef {
     fn from(channel: &'a tl::types::Channel) -> Self {
         Self {
-            id: PeerId::channel(channel.id),
+            id: PeerId::channel_unchecked(channel.id),
             auth: channel
                 .access_hash
                 .map(PeerAuth::from_hash)
@@ -581,7 +606,7 @@ impl From<tl::types::ChannelForbidden> for PeerRef {
 impl<'a> From<&'a tl::types::ChannelForbidden> for PeerRef {
     fn from(channel: &'a tl::types::ChannelForbidden) -> Self {
         Self {
-            id: PeerId::channel(channel.id),
+            id: PeerId::channel_unchecked(channel.id),
             auth: PeerAuth::from_hash(channel.access_hash),
         }
     }

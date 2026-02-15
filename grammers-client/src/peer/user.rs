@@ -101,7 +101,7 @@ impl User {
 
     /// Return the unique identifier for this user.
     pub fn id(&self) -> PeerId {
-        PeerId::user(self.raw.id())
+        PeerId::user_unchecked(self.raw.id())
     }
 
     /// Non-min auth stored in the user, if any.

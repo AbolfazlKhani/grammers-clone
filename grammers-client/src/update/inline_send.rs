@@ -43,7 +43,7 @@ impl InlineSend {
 
     /// The [`Self::sender`]'s identifier.
     pub fn sender_id(&self) -> PeerId {
-        PeerId::user(self.update().user_id)
+        PeerId::user_unchecked(self.update().user_id)
     }
 
     /// Cached reference to the [`Self::sender`], if it is in cache.

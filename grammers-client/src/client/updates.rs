@@ -37,7 +37,7 @@ async fn prepare_channel_difference(
     message_box: &mut MessageBoxes,
 ) -> Option<tl::functions::updates::GetChannelDifference> {
     let id = match &request.channel {
-        tl::enums::InputChannel::Channel(channel) => PeerId::channel(channel.channel_id),
+        tl::enums::InputChannel::Channel(channel) => PeerId::channel_unchecked(channel.channel_id),
         _ => unreachable!(),
     };
 

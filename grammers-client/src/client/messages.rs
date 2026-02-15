@@ -112,7 +112,7 @@ pub(crate) async fn parse_mention_entities(
                         access_hash: client
                             .0
                             .session
-                            .peer(PeerId::user(mention_name.user_id))
+                            .peer(PeerId::user_unchecked(mention_name.user_id))
                             .await
                             .and_then(|peer| peer.auth())
                             .unwrap_or_default()

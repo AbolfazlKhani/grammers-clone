@@ -115,7 +115,7 @@ impl Channel {
 
     /// Return the unique identifier for this channel.
     pub fn id(&self) -> PeerId {
-        PeerId::channel(self.raw.id)
+        PeerId::channel_unchecked(self.raw.id)
     }
 
     /// Non-min auth stored in the channel, if any.

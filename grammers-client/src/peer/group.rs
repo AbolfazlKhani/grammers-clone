@@ -75,11 +75,11 @@ impl Group {
         use tl::enums::Chat;
 
         match &self.raw {
-            Chat::Empty(chat) => PeerId::chat(chat.id),
-            Chat::Chat(chat) => PeerId::chat(chat.id),
-            Chat::Forbidden(chat) => PeerId::chat(chat.id),
-            Chat::Channel(channel) => PeerId::channel(channel.id),
-            Chat::ChannelForbidden(channel) => PeerId::channel(channel.id),
+            Chat::Empty(chat) => PeerId::chat_unchecked(chat.id),
+            Chat::Chat(chat) => PeerId::chat_unchecked(chat.id),
+            Chat::Forbidden(chat) => PeerId::chat_unchecked(chat.id),
+            Chat::Channel(channel) => PeerId::channel_unchecked(channel.id),
+            Chat::ChannelForbidden(channel) => PeerId::channel_unchecked(channel.id),
         }
     }
 

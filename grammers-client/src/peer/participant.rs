@@ -78,7 +78,7 @@ impl Normal {
 
     /// Identifier of the person that invited the participant into the chat, if known.
     pub fn inviter_id(&self) -> Option<PeerId> {
-        self.inviter_id.map(PeerId::user)
+        self.inviter_id.map(PeerId::user_unchecked)
     }
 }
 
@@ -101,12 +101,12 @@ impl Admin {
 
     /// Identifier of the person that invited the participant into the chat, if known.
     pub fn inviter_id(&self) -> Option<PeerId> {
-        self.inviter_id.map(PeerId::user)
+        self.inviter_id.map(PeerId::user_unchecked)
     }
 
     /// Identifier of the person that promoted the participant, if known.
     pub fn promoted_by(&self) -> Option<PeerId> {
-        self.promoted_by.map(PeerId::user)
+        self.promoted_by.map(PeerId::user_unchecked)
     }
 
     pub fn date(&self) -> DateTime<Utc> {
@@ -131,7 +131,7 @@ impl Banned {
 
     /// Identifier of the person that kicked the participant from the chat.
     pub fn kicked_by(&self) -> PeerId {
-        PeerId::user(self.kicked_by)
+        PeerId::user_unchecked(self.kicked_by)
     }
 
     pub fn date(&self) -> DateTime<Utc> {

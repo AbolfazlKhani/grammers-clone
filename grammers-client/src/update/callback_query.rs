@@ -45,7 +45,9 @@ impl CallbackQuery {
     pub fn peer_id(&self) -> PeerId {
         match &self.raw {
             tl::enums::Update::BotCallbackQuery(update) => update.peer.clone().into(),
-            tl::enums::Update::InlineBotCallbackQuery(update) => PeerId::user(update.user_id),
+            tl::enums::Update::InlineBotCallbackQuery(update) => {
+                PeerId::user_unchecked(update.user_id)
+            }
             _ => unreachable!(),
         }
     }
@@ -62,7 +64,7 @@ impl CallbackQuery {
 
     /// The [`Self::sender`]'s identifier.
     pub fn sender_id(&self) -> PeerId {
-        PeerId::user(match &self.raw {
+        PeerId::user_unchecked(match &self.raw {
             tl::enums::Update::BotCallbackQuery(update) => update.user_id,
             tl::enums::Update::InlineBotCallbackQuery(update) => update.user_id,
             _ => unreachable!(),
