@@ -418,20 +418,10 @@ impl Client {
             Err(err) => return Err(err),
         };
 
-        Ok(match peer {
-            tl::enums::Peer::User(tl::types::PeerUser { user_id }) => users
-                .into_iter()
-                .map(|user| Peer::from_user(self, user))
-                .find(|peer| peer.id() == PeerId::user_unchecked(user_id)),
-            tl::enums::Peer::Chat(tl::types::PeerChat { chat_id }) => chats
-                .into_iter()
-                .map(|chat| Peer::from_raw(self, chat))
-                .find(|peer| peer.id() == PeerId::chat_unchecked(chat_id)),
-            tl::enums::Peer::Channel(tl::types::PeerChannel { channel_id }) => chats
-                .into_iter()
-                .map(|chat| Peer::from_raw(self, chat))
-                .find(|peer| peer.id() == PeerId::channel_unchecked(channel_id)),
-        })
+        let mut peers = self.build_peer_map(users, chats).await;
+        let peer_id = PeerId::from(peer);
+
+        Ok(peers.take(peer_id))
     }
 
     /// Search for peers (users, groups, channels, bots) by name or username.
