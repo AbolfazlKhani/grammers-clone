@@ -17,21 +17,21 @@ edition = "2024"
 proxy = ["tokio-socks", "hickory-resolver", "url", "async-http-proxy"]
 
 [dependencies]
-bytes = "1.10.1"
+bytes = "1.11.1"
 grammers-crypto = { path = "../grammers-crypto", version = "0.8.0" }
 grammers-mtproto = { path = "../grammers-mtproto", version = "0.8.0" }
 grammers-session = { path = "../grammers-session", version = "0.8.0", default-features = false }
 grammers-tl-types = { path = "../grammers-tl-types", version = "0.8.0", features = [ "tl-mtproto" ] }
 locate-locale = "0.2.0"
-os_info = { version = "3.12.0", default-features = false }
-log = "0.4.28"
-tokio = { version = "1.47.1", default-features = false, features = ["io-util", "sync", "time", "net", "macros", "rt"] }
+os_info = { version = "3.14.0", default-features = false }
+log = "0.4.29"
+tokio = { version = "1.49.0", default-features = false, features = ["io-util", "sync", "time", "net", "macros", "rt"] }
 tokio-socks = { version = "0.5.2", optional = true }
 hickory-resolver = { version = "0.25.2", optional = true }
-url = { version = "2.5.7", optional = true }
+url = { version = "2.5.8", optional = true }
 async-http-proxy = { version = "1.2.5", features = ["runtime-tokio", "basic-auth"], optional = true }
 
 [dev-dependencies]
-simple_logger = { version = "5.0.0", default-features = false, features = ["colors"] }
-toml = "0.9.8"
+simple_logger = { version = "5.2.0", default-features = false, features = ["colors"] }
+toml = "1.0.3"
 socks5-server = "0.10.1"
