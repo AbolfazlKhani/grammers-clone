@@ -1,6 +1,6 @@
 [package]
 name = "grammers-session"
-version = "0.8.0"
+version = "0.9.0"
 authors = ["Lonami Exo <totufals@hotmail.com>"]
 license = "MIT OR Apache-2.0"
 description = """
@@ -15,7 +15,7 @@ edition = "2024"
 
 [dependencies]
 futures-core = "0.3.32"
-grammers-tl-types = { path = "../grammers-tl-types", version = "0.8.0" }
+grammers-tl-types = { path = "../grammers-tl-types", version = "0.9.0" }
 log = "0.4.29"
 
 libsql = { version = "0.9.29", default-features = false, features = ["core"], optional = true }
