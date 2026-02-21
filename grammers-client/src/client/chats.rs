@@ -446,9 +446,9 @@ impl Client {
     /// let results = client.search_peer("username", 5).await?;
     /// for item in &results {
     ///     match item {
-    ///         PeerSearchItem::Contact(peer) => println!("Contact: {}", peer.name()),
-    ///         PeerSearchItem::Dialog(peer) => println!("Dialog: {}", peer.name()),
-    ///         PeerSearchItem::Global(peer) => println!("Global: {}", peer.name()),
+    ///         PeerSearchItem::Contact(peer) => println!("Contact: {:?}", peer.name()),
+    ///         PeerSearchItem::Dialog(peer) => println!("Dialog: {:?}", peer.name()),
+    ///         PeerSearchItem::Global(peer) => println!("Global: {:?}", peer.name()),
     ///     }
     /// }
     /// # Ok(())
