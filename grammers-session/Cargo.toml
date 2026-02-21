@@ -19,13 +19,14 @@ grammers-tl-types = { path = "../grammers-tl-types", version = "0.8.0" }
 log = "0.4.29"
 
 libsql = { version = "0.9.29", default-features = false, features = ["core"], optional = true }
-tokio = { version = "1.49.0", default-features = false }
+tokio = { version = "1.49.0", default-features = false, features = ["sync"] }
 
 serde = { version = "1", features = ["derive"], optional = true }
 serde_with = { version = "3", features = ["hex"], optional = true }
 
 [dev-dependencies]
 toml = "1.0.3"
+tokio = { version = "1.49.0", default-features = false, features = ["sync", "rt"] }
 
 [features]
 default = ["sqlite-storage"]
