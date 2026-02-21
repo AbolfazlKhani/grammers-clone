@@ -10,7 +10,7 @@ The library is in development, but new releases are only cut rarely.
 [Specifying the dependency from the git repository][dep-git] is recommended:
 
 ```toml
-grammers-client = { git = "https://github.com/Lonami/grammers" }
+grammers-client = { git = "https://codeberg.org/Lonami/grammers.git" }
 ```
 
 Please note that traits across versions are not always compatible.

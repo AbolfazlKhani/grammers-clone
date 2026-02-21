@@ -6,9 +6,9 @@ license = "MIT OR Apache-2.0"
 description = """
 Rust code generator from Telegram's API definitions.
 """
-homepage = "https://github.com/Lonami/grammers"
+homepage = "https://codeberg.org/Lonami/grammers"
 documentation = "https://docs.rs/grammers-tl-gen"
-repository = "https://github.com/Lonami/grammers"
+repository = "https://codeberg.org/Lonami/grammers"
 keywords = ["telegram", "tl"]
 categories = []
 edition = "2024"

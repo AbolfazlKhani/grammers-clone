@@ -85,8 +85,8 @@ Unless you explicitly state otherwise, any contribution intentionally submitted
 for inclusion in the work by you, as defined in the Apache-2.0 license, shall be
 dual licensed as above, without any additional terms or conditions.
 
-[build real projects]: https://github.com/Lonami/grammers/wiki/Real-world-projects
-[RSS bots]: https://github.com/Lonami/srsrssrsbot
+[build real projects]: https://codeberg.org/Lonami/grammers/wiki/Real-world-projects
+[RSS bots]: https://codeberg.org/Lonami/srsrssrsbot
 [client examples]: grammers-client/examples
 [Mobile Transport Protocol]: https://core.telegram.org/mtproto
 [Type Language]: https://core.telegram.org/mtproto/TL
@@ -108,9 +108,9 @@ dual licensed as above, without any additional terms or conditions.
 [scrape-docs]: bin/scrape-docs/
 [tl-to-json]: bin/tl-to-json/
 [tl-json]: https://core.telegram.org/schema/json
-[cargo-crev]: https://github.com/crev-dev/cargo-crev
+[cargo-crev]: https://crates.io/crates/cargo-crev
 [LICENSE-APACHE]: LICENSE-APACHE
 [LICENSE-MIT]: LICENSE-MIT
-[contribute code]: https://github.com/Lonami/grammers/compare
-[reporting issues]: https://github.com/Lonami/grammers/issues/new
-[extensions to grammers]: https://github.com/Lonami/grammers/wiki/Client-extensions
+[contribute code]: https://codeberg.org/Lonami/srsrssrsbot/pulls
+[reporting issues]: https://codeberg.org/Lonami/srsrssrsbot/issues/new
+[extensions to grammers]: https://codeberg.org/Lonami/grammers/wiki/Client-extensions
