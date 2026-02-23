@@ -81,11 +81,7 @@ async fn async_main() -> Result<()> {
     println!("Showing up to {} dialogs:", dialogs.total().await?);
     while let Some(dialog) = dialogs.next().await? {
         let peer = dialog.peer();
-        println!(
-            "- {: >10} {}",
-            peer.id().bot_api_dialog_id(),
-            peer.name().unwrap_or_default()
-        );
+        println!("- {: >10} {}", peer.id(), peer.name().unwrap_or_default());
     }
 
     // `runner.run()`'s task will be dropped (and disconnect occur) once the runtime exits.

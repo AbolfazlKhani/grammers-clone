@@ -122,7 +122,7 @@ impl Client {
         self.0
             .session
             .cache_peer(&PeerInfo::User {
-                id: user.id().bare_id(),
+                id: user.id().bare_id_unchecked(),
                 auth: Some(auth),
                 bot: Some(user.is_bot()),
                 is_self: Some(true),

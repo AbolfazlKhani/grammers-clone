@@ -591,7 +591,7 @@ impl Client {
 
         Ok(match updates {
             tl::enums::Updates::UpdateShortSentMessage(updates) => {
-                let peer = if peer.id.kind() == PeerKind::UserSelf {
+                let peer = if peer.id.bare_id().is_none() {
                     // from_raw_short_updates needs the peer ID
                     self.0.session.peer_ref(peer.id).await.unwrap()
                 } else {
@@ -940,7 +940,7 @@ impl Client {
         // TODO shouldn't this method take in a message id anyway?
         let peer_id = message.peer_id();
         let peer = match peer_id.kind() {
-            PeerKind::User | PeerKind::UserSelf | PeerKind::Chat => PeerRef {
+            PeerKind::User | PeerKind::Chat => PeerRef {
                 id: peer_id,
                 auth: PeerAuth::default(), // unused, so no need to bother fetching it
             },

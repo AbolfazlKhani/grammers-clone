@@ -269,7 +269,7 @@ impl Message {
             // Incoming messages in private conversations don't include `from_id` since
             // layer 119, but the sender can only be the peer we're in.
             let peer_id = self.peer_id();
-            if matches!(peer_id.kind(), PeerKind::User | PeerKind::UserSelf) {
+            if matches!(peer_id.kind(), PeerKind::User) {
                 if self.outgoing() {
                     Some(PeerId::self_user())
                 } else {

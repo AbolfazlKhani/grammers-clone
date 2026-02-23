@@ -236,26 +236,24 @@ pub struct ProfilePhotoIter(ProfilePhotoIterInner);
 
 impl ProfilePhotoIter {
     fn new(client: &Client, peer: PeerRef) -> Self {
-        Self(
-            if matches!(peer.id.kind(), PeerKind::User | PeerKind::UserSelf) {
-                ProfilePhotoIterInner::User(IterBuffer::from_request(
-                    client,
-                    MAX_PHOTO_LIMIT,
-                    tl::functions::photos::GetUserPhotos {
-                        user_id: peer.into(),
-                        offset: 0,
-                        max_id: 0,
-                        limit: 0,
-                    },
-                ))
-            } else {
-                ProfilePhotoIterInner::Chat(
-                    client
-                        .search_messages(peer)
-                        .filter(tl::enums::MessagesFilter::InputMessagesFilterChatPhotos),
-                )
-            },
-        )
+        Self(if matches!(peer.id.kind(), PeerKind::User) {
+            ProfilePhotoIterInner::User(IterBuffer::from_request(
+                client,
+                MAX_PHOTO_LIMIT,
+                tl::functions::photos::GetUserPhotos {
+                    user_id: peer.into(),
+                    offset: 0,
+                    max_id: 0,
+                    limit: 0,
+                },
+            ))
+        } else {
+            ProfilePhotoIterInner::Chat(
+                client
+                    .search_messages(peer)
+                    .filter(tl::enums::MessagesFilter::InputMessagesFilterChatPhotos),
+            )
+        })
     }
 
     /// Determines how many profile photos there are in total.
@@ -624,7 +622,7 @@ impl Client {
     pub async fn resolve_peer<C: Into<PeerRef>>(&self, peer: C) -> Result<Peer, InvocationError> {
         let peer = peer.into();
         Ok(match peer.id.kind() {
-            PeerKind::User | PeerKind::UserSelf => {
+            PeerKind::User => {
                 let mut res = self
                     .invoke(&tl::functions::users::GetUsers {
                         id: vec![peer.into()],
@@ -696,7 +694,7 @@ impl Client {
                 tl::enums::InputUser::FromMessage(user) => user.user_id,
                 tl::enums::InputUser::UserSelf => {
                     let me = self.get_me().await?;
-                    me.id().bare_id()
+                    me.id().bare_id_unchecked()
                 }
                 tl::enums::InputUser::Empty => return Err(InvocationError::Dropped),
             };
@@ -828,7 +826,7 @@ impl Client {
         let channel = chat.into();
         Ok(updates_to_chat(
             self,
-            Some(chat.id.bare_id()),
+            chat.id.bare_id(),
             self.invoke(&tl::functions::channels::JoinChannel { channel })
                 .await?,
         ))

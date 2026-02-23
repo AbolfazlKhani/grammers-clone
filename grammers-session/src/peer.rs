@@ -60,10 +60,8 @@ pub struct PeerRef {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum PeerKind {
-    /// The peer identity belongs to a [`tl::enums::User`]. May also represent [`PeerKind::UserSelf`].
+    /// The peer identity belongs to a [`tl::enums::User`] or the self-user without knowing its identifier.
     User,
-    /// The peer identity belongs to a user with its [`tl::types::User::is_self`] flag set to `true`.
-    UserSelf,
     /// The peer identity belongs to a [`tl::types::Chat`] or one of its derivatives.
     Chat,
     /// The peer identity belongs to a [`tl::types::Channel`] or one of its derivatives.
@@ -211,10 +209,8 @@ impl PeerId {
 
     /// Peer kind.
     pub fn kind(self) -> PeerKind {
-        if 1 <= self.0 && self.0 <= 0xffffffffff {
+        if 1 <= self.0 && self.0 <= 0xffffffffff || self.0 == SELF_USER_ID.0 {
             PeerKind::User
-        } else if self.0 == SELF_USER_ID.0 {
-            PeerKind::UserSelf
         } else if -999999999999 <= self.0 && self.0 <= -1 {
             PeerKind::Chat
         } else if -1997852516352 <= self.0 && self.0 <= -1000000000001
@@ -226,19 +222,42 @@ impl PeerId {
         }
     }
 
-    /// Returns the identity using the Bot API Dialog ID format.
+    /// Returns the identity using the Bot API Dialog ID format, which has the [`PeerKind`] embedded.
     ///
-    /// Will return an arbitrary value if [`Self::kind`] is [`PeerKind::UserSelf`].
-    /// This value should not be relied on and may change between releases.
-    pub fn bot_api_dialog_id(&self) -> i64 {
+    /// Returns `None` if the peer was constructed without providing an identifier.
+    /// For now, this can only happen if `self` represents the [`Self::self_user`].
+    pub fn bot_api_dialog_id(&self) -> Option<i64> {
+        (self.0 != SELF_USER_ID.0).then_some(self.0)
+    }
+
+    /// Returns the identity using the Bot API Dialog ID format, which has the [`PeerKind`] embedded.
+    #[doc(hidden)]
+    pub fn bot_api_dialog_id_unchecked(&self) -> i64 {
+        debug_assert!(self.0 != SELF_USER_ID.0);
         self.0
     }
 
-    /// Unpacked peer identifier. Panics if [`Self::kind`] is [`PeerKind::UserSelf`].
-    pub fn bare_id(&self) -> i64 {
+    /// Bare peer identifier without the [`PeerKind`] tag embedded, as used by Telegram's MTProto API.
+    ///
+    /// Returns `None` if the peer was constructed without providing an identifier.
+    /// For now, this can only happen if `self` represents the [`Self::self_user`].
+    pub fn bare_id(&self) -> Option<i64> {
+        if self.0 == SELF_USER_ID.0 {
+            return None;
+        }
+        Some(match self.kind() {
+            PeerKind::User => self.0,
+            PeerKind::Chat => -self.0,
+            PeerKind::Channel => -self.0 - 1000000000000,
+        })
+    }
+
+    /// Bare peer identifier without the [`PeerKind`] tag embedded, as used by Telegram's MTProto API.
+    #[doc(hidden)]
+    pub fn bare_id_unchecked(&self) -> i64 {
+        debug_assert!(self.0 != SELF_USER_ID.0);
         match self.kind() {
             PeerKind::User => self.0,
-            PeerKind::UserSelf => panic!("self-user ID not known"),
             PeerKind::Chat => -self.0,
             PeerKind::Channel => -self.0 - 1000000000000,
         }
@@ -269,8 +288,6 @@ impl Default for PeerAuth {
 
 impl PeerInfo {
     /// Returns the `PeerId` represented by this info.
-    ///
-    /// The returned [`PeerId::kind()`] will never be [`PeerKind::UserSelf`].
     pub fn id(&self) -> PeerId {
         match self {
             PeerInfo::User { id, .. } => PeerId::user_unchecked(*id),
@@ -291,7 +308,10 @@ impl PeerInfo {
 
 impl fmt::Display for PeerId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.bot_api_dialog_id().fmt(f)
+        match self.bot_api_dialog_id() {
+            Some(id) => id.fmt(f),
+            None => f.write_str("<self-user>"),
+        }
     }
 }
 
@@ -622,14 +642,13 @@ impl<'a> From<&'a PeerId> for tl::enums::Peer {
     fn from(peer: &'a PeerId) -> Self {
         match peer.kind() {
             PeerKind::User => Self::User(tl::types::PeerUser {
-                user_id: peer.bare_id(),
+                user_id: peer.bare_id_unchecked(), // may have bogus data on release builds
             }),
-            PeerKind::UserSelf => panic!("self-user ID not known"),
             PeerKind::Chat => Self::Chat(tl::types::PeerChat {
-                chat_id: peer.bare_id(),
+                chat_id: peer.bare_id_unchecked(),
             }),
             PeerKind::Channel => Self::Channel(tl::types::PeerChannel {
-                channel_id: peer.bare_id(),
+                channel_id: peer.bare_id_unchecked(),
             }),
         }
     }
@@ -644,16 +663,18 @@ impl From<PeerRef> for tl::enums::InputPeer {
 impl<'a> From<&'a PeerRef> for tl::enums::InputPeer {
     fn from(peer: &'a PeerRef) -> Self {
         match peer.id.kind() {
-            PeerKind::User => Self::User(tl::types::InputPeerUser {
-                user_id: peer.id.bare_id(),
-                access_hash: peer.auth.hash(),
-            }),
-            PeerKind::UserSelf => Self::PeerSelf,
+            PeerKind::User => match peer.id.bare_id() {
+                Some(user_id) => Self::User(tl::types::InputPeerUser {
+                    user_id,
+                    access_hash: peer.auth.hash(),
+                }),
+                None => Self::PeerSelf,
+            },
             PeerKind::Chat => Self::Chat(tl::types::InputPeerChat {
-                chat_id: peer.id.bare_id(),
+                chat_id: peer.id.bare_id_unchecked(),
             }),
             PeerKind::Channel => Self::Channel(tl::types::InputPeerChannel {
-                channel_id: peer.id.bare_id(),
+                channel_id: peer.id.bare_id_unchecked(),
                 access_hash: peer.auth.hash(),
             }),
         }
@@ -669,11 +690,13 @@ impl From<PeerRef> for tl::enums::InputUser {
 impl<'a> From<&'a PeerRef> for tl::enums::InputUser {
     fn from(peer: &'a PeerRef) -> Self {
         match peer.id.kind() {
-            PeerKind::User => Self::User(tl::types::InputUser {
-                user_id: peer.id.bare_id(),
-                access_hash: peer.auth.hash(),
-            }),
-            PeerKind::UserSelf => Self::UserSelf,
+            PeerKind::User => match peer.id.bare_id() {
+                Some(user_id) => Self::User(tl::types::InputUser {
+                    user_id,
+                    access_hash: peer.auth.hash(),
+                }),
+                None => Self::UserSelf,
+            },
             PeerKind::Chat => Self::Empty,
             PeerKind::Channel => Self::Empty,
         }
@@ -690,8 +713,7 @@ impl<'a> From<&'a PeerRef> for i64 {
     fn from(peer: &'a PeerRef) -> Self {
         match peer.id.kind() {
             PeerKind::User => EMPTY_CHAT_ID,
-            PeerKind::UserSelf => EMPTY_CHAT_ID,
-            PeerKind::Chat => peer.id.bare_id(),
+            PeerKind::Chat => peer.id.bare_id_unchecked(),
             PeerKind::Channel => EMPTY_CHAT_ID,
         }
     }
@@ -707,10 +729,9 @@ impl<'a> From<&'a PeerRef> for tl::enums::InputChannel {
     fn from(peer: &'a PeerRef) -> Self {
         match peer.id.kind() {
             PeerKind::User => Self::Empty,
-            PeerKind::UserSelf => Self::Empty,
             PeerKind::Chat => Self::Empty,
             PeerKind::Channel => Self::Channel(tl::types::InputChannel {
-                channel_id: peer.id.bare_id(),
+                channel_id: peer.id.bare_id_unchecked(),
                 access_hash: peer.auth.hash(),
             }),
         }
