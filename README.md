@@ -69,6 +69,15 @@ on your issues or pull requests. Please do call me out if you think my behaviour
 at any time. I will try to keep the discussion as technical as possible. Similarly, I will not
 tolerate poor behaviour from your side towards other people (including myself).
 
+**Please only submit issues and pull requests authored entirely by you or other fellow humans.**
+If you don't feel capable of authoring code yourself, I encourage you to still try, as I believe
+that's the best way to learn and get better. If you're still not comfortable, please submit a
+feature-request instead, for discussion, so that someone else can implement it instead.
+
+You may use translation assistance if writing English is also not something you're comfortable with.
+But please choose a translation tool that doesn't overly try to rewrite and twist your thoughts.
+Browsers like Firefox have a decently good offline translator built-in that you may use.
+
 It is recommended to run these commands to make the Git experience a bit nicer:
 
 ```sh
