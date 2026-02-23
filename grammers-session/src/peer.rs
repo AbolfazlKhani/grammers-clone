@@ -522,11 +522,7 @@ impl From<tl::types::User> for PeerRef {
 impl<'a> From<&'a tl::types::User> for PeerRef {
     fn from(user: &'a tl::types::User) -> Self {
         Self {
-            id: if user.is_self {
-                PeerId::self_user()
-            } else {
-                PeerId::user_unchecked(user.id)
-            },
+            id: PeerId::user_unchecked(user.id),
             auth: user
                 .access_hash
                 .map(PeerAuth::from_hash)
