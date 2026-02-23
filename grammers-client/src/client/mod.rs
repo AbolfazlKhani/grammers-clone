@@ -23,7 +23,7 @@ mod updates;
 
 pub use auth::{LoginToken, PasswordToken, SignInError};
 pub use bots::{InlineResult, InlineResultIter};
-pub use chats::{ParticipantIter, ParticipantPermissions, PeerSearchItem, ProfilePhotoIter};
+pub use chats::{ParticipantIter, ParticipantPermissions, ProfilePhotoIter};
 pub(crate) use client::ClientInner;
 pub use client::{Client, ClientConfiguration, UpdatesConfiguration};
 pub use dialogs::DialogIter;
