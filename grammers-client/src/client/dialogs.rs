@@ -137,6 +137,11 @@ impl Client {
     /// When the update state is set for these peers, the library can actively check to make sure it's not missing any
     /// updates from them (as long as the queue limit for updates is larger than zero).
     ///
+    /// Bot accounts will receive an error response when using this method, as they do not have dialogs.
+    /// The closest a bot account can get to listing the peers it has interacted with is by querying the
+    /// session cache, but that approach can be misleading, as it often contains both additional peers,
+    /// and peers that have since blocked the bot ("deleted the dialog" with it).
+    ///
     /// # Examples
     ///
     /// ```
