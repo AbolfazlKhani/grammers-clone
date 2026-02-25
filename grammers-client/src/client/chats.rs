@@ -621,20 +621,20 @@ impl Client {
     /// ```
     pub async fn resolve_peer<C: Into<PeerRef>>(&self, peer: C) -> Result<Peer, InvocationError> {
         let peer = peer.into();
-        Ok(match peer.id.kind() {
+        let mut peers = match peer.id.kind() {
             PeerKind::User => {
-                let mut res = self
+                let res = self
                     .invoke(&tl::functions::users::GetUsers {
                         id: vec![peer.into()],
                     })
                     .await?;
-                if res.len() != 1 {
+                if res.len() > 1 {
                     panic!("fetching only one user should exactly return one user");
                 }
-                Peer::from_user(self, res.pop().unwrap())
+                self.build_peer_map(res, Vec::new()).await
             }
             PeerKind::Chat => {
-                let mut res = match self
+                let res = match self
                     .invoke(&tl::functions::messages::GetChats {
                         id: vec![peer.into()],
                     })
@@ -643,13 +643,13 @@ impl Client {
                     tl::enums::messages::Chats::Chats(chats) => chats.chats,
                     tl::enums::messages::Chats::Slice(chat_slice) => chat_slice.chats,
                 };
-                if res.len() != 1 {
+                if res.len() > 1 {
                     panic!("fetching only one chat should exactly return one chat");
                 }
-                Peer::from_raw(self, res.pop().unwrap())
+                self.build_peer_map(Vec::new(), res).await
             }
             PeerKind::Channel => {
-                let mut res = match self
+                let res = match self
                     .invoke(&tl::functions::channels::GetChannels {
                         id: vec![peer.into()],
                     })
@@ -658,12 +658,13 @@ impl Client {
                     tl::enums::messages::Chats::Chats(chats) => chats.chats,
                     tl::enums::messages::Chats::Slice(chat_slice) => chat_slice.chats,
                 };
-                if res.len() != 1 {
-                    panic!("fetching only one chat should exactly return one chat");
+                if res.len() > 1 {
+                    panic!("fetching only one channel should exactly return one chat");
                 }
-                Peer::from_raw(self, res.pop().unwrap())
+                self.build_peer_map(Vec::new(), res).await
             }
-        })
+        };
+        peers.take(peer.id).ok_or(InvocationError::Dropped)
     }
 
     /// Get permissions of participant `user` from chat `chat`.
