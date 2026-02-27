@@ -151,6 +151,11 @@ pub enum UpdatesLike {
     /// Indicates that the connection was closed and had to be recreated.
     /// This may mean that an update gap now exists and should be resolved.
     ConnectionClosed,
+    /// Indicates that passively-received updates were malformed.
+    /// Either the constructor identifier was unexpected (possibly a stale channel
+    /// update) or the updates were cut short during deserialization (very unlikely).
+    /// This should be treated as a gap.
+    MalformedUpdates,
 }
 
 // Public interface around the more tightly-packed internal state.

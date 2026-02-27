@@ -425,7 +425,11 @@ impl<T: Transport, M: Mtp> Sender<T, M> {
                 updates.push(UpdatesLike::Updates(u));
                 return;
             }
-            (Err(e), _) => warn!("telegram sent updates that failed to be deserialized: {e}"),
+            (Err(e), _) => {
+                // This shouldn't happen. We just made the request, so they shouldn't be stale.
+                // If the request failed with a failed-to-deserialize error, callers will handle it.
+                warn!("telegram responded with updates that failed to be deserialized: {e}")
+            }
         }
 
         match tl::enums::messages::AffectedMessages::from_bytes(&update) {
@@ -450,7 +454,13 @@ impl<T: Transport, M: Mtp> Sender<T, M> {
     fn process_update(&mut self, updates: &mut Vec<UpdatesLike>, update: Vec<u8>) {
         match tl::enums::Updates::from_bytes(&update) {
             Ok(u) => updates.push(UpdatesLike::Updates(u)),
-            Err(e) => warn!("telegram sent updates that failed to be deserialized: {e}"),
+            Err(e) => {
+                // These are to be treated as a gap.
+                // > Manually obtaining updates through [get difference] is required in the following situations:
+                // > […] Incorrect update: the client cannot deserialize the received data.
+                warn!("telegram sent updates that failed to be deserialized: {e}");
+                updates.push(UpdatesLike::MalformedUpdates);
+            }
         }
     }
 
