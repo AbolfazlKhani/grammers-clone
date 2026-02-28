@@ -78,6 +78,23 @@ pub(crate) fn generate_random_id() -> i64 {
     LAST_ID.fetch_add(1, Ordering::SeqCst)
 }
 
+fn deserialize_updates_like(update: Vec<u8>) -> tl::deserialize::Result<UpdatesLike> {
+    match tl::enums::Updates::from_bytes(&update) {
+        Ok(u) => Ok(UpdatesLike::Updates(u)),
+        Err(e) => {
+            if let Ok(tl::enums::messages::AffectedMessages::Messages(u)) =
+                tl::enums::messages::AffectedMessages::from_bytes(&update)
+            {
+                Ok(UpdatesLike::AffectedMessages(u))
+            } else if let Ok(u) = tl::types::messages::InvitedUsers::from_bytes(&update) {
+                Ok(UpdatesLike::InvitedUsers(u))
+            } else {
+                Err(e)
+            }
+        }
+    }
+}
+
 /// Manages enqueuing requests, matching them to their response, and IO.
 pub struct Sender<T: Transport, M: Mtp> {
     stream: NetStream,
@@ -409,12 +426,15 @@ impl<T: Transport, M: Mtp> Sender<T, M> {
         update: Vec<u8>,
     ) {
         match (
-            tl::enums::Updates::from_bytes(&update),
+            deserialize_updates_like(update),
             self.peek_request(msg_id).and_then(|request| {
                 tl::functions::messages::SendMessage::from_bytes(&request.body).ok()
             }),
         ) {
-            (Ok(tl::enums::Updates::UpdateShortSentMessage(u)), Some(request)) => {
+            (
+                Ok(UpdatesLike::Updates(tl::enums::Updates::UpdateShortSentMessage(u))),
+                Some(request),
+            ) => {
                 // As far as I know, UpdateShortSentMessage can only occur from SendMessage.
                 // If that's not the case, new variants with additional requests should be added.
                 updates.push(UpdatesLike::ShortSentMessage { request, update: u })
@@ -422,7 +442,7 @@ impl<T: Transport, M: Mtp> Sender<T, M> {
             (Ok(u), _) => {
                 // In the future, we might want to flag "updates produced by the client" somehow.
                 // This would be the starting place to do it.
-                updates.push(UpdatesLike::Updates(u));
+                updates.push(u);
                 return;
             }
             (Err(e), _) => {
@@ -431,29 +451,11 @@ impl<T: Transport, M: Mtp> Sender<T, M> {
                 warn!("telegram responded with updates that failed to be deserialized: {e}")
             }
         }
-
-        match tl::enums::messages::AffectedMessages::from_bytes(&update) {
-            Ok(tl::enums::messages::AffectedMessages::Messages(u)) => {
-                updates.push(UpdatesLike::AffectedMessages(u));
-                return;
-            }
-            Err(_) => {}
-        }
-
-        match tl::types::messages::InvitedUsers::from_bytes(&update) {
-            Ok(u) => {
-                updates.push(UpdatesLike::InvitedUsers(u));
-                return;
-            }
-            Err(_) => {}
-        }
-
-        warn!("telegram sent an unknown or invalid updates-like type for a response");
     }
 
     fn process_update(&mut self, updates: &mut Vec<UpdatesLike>, update: Vec<u8>) {
-        match tl::enums::Updates::from_bytes(&update) {
-            Ok(u) => updates.push(UpdatesLike::Updates(u)),
+        match deserialize_updates_like(update) {
+            Ok(u) => updates.push(u),
             Err(e) => {
                 // These are to be treated as a gap.
                 // > Manually obtaining updates through [get difference] is required in the following situations:
