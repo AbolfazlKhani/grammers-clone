@@ -341,9 +341,24 @@ pub(super) fn adapt(updates: UpdatesLike) -> Result<tl::types::UpdatesCombined, 
                 date: update.date,
             }))
         }
-        // For simplicity, instead of introducing an extra enum, reuse a closely-related update type.
+        // Reuse a closely-related update type to keep pts consistent.
         UpdatesLike::AffectedMessages(affected) => Ok(update_short(tl::types::UpdateShort {
             update: tl::types::UpdateDeleteMessages {
+                messages: Vec::new(),
+                pts: affected.pts,
+                pts_count: affected.pts_count,
+            }
+            .into(),
+            date: 0,
+        })),
+        // Channel-specific variant: use UpdateDeleteChannelMessages so the pts is applied
+        // to Key::Channel(channel_id) instead of Key::Common.
+        UpdatesLike::AffectedChannelMessages {
+            affected,
+            channel_id,
+        } => Ok(update_short(tl::types::UpdateShort {
+            update: tl::types::UpdateDeleteChannelMessages {
+                channel_id,
                 messages: Vec::new(),
                 pts: affected.pts,
                 pts_count: affected.pts_count,

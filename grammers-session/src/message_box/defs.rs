@@ -146,6 +146,13 @@ pub enum UpdatesLike {
     },
     /// Special-case for requests that affect some messages.
     AffectedMessages(tl::types::messages::AffectedMessages),
+    /// Special-case for channel-specific requests that affect messages (e.g.
+    /// `channels.deleteMessages`). The `channel_id` is needed so the `pts` can
+    /// be applied to the correct `Key::Channel` instead of `Key::Common`.
+    AffectedChannelMessages {
+        affected: tl::types::messages::AffectedMessages,
+        channel_id: i64,
+    },
     /// Special-case for requests that lead to users being invited.
     InvitedUsers(tl::types::messages::InvitedUsers),
     /// Indicates that the connection was closed and had to be recreated.
