@@ -121,6 +121,7 @@ impl UpdateStream {
                             channels: Vec::new(),
                         }))
                         .await;
+                    self.message_box.set_state(state);
                 }
                 Err(_err) => {
                     // The account may no longer actually be logged in, or it can rarely fail.

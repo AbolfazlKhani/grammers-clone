@@ -50,14 +50,14 @@ fn advance_time_by(duration: Duration) {
     NOW.with_borrow_mut(|now| now.0 += duration);
 }
 
-fn state(date: i32, seq: i32, pts: i32, qts: i32) -> tl::enums::updates::State {
-    tl::enums::updates::State::State(tl::types::updates::State {
+fn state(date: i32, seq: i32, pts: i32, qts: i32) -> tl::types::updates::State {
+    tl::types::updates::State {
         pts,
         qts,
         date,
         seq,
         unread_count: 0,
-    })
+    }
 }
 
 fn update(pts: i32) -> tl::enums::Update {

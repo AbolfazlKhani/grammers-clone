@@ -326,11 +326,10 @@ impl MessageBoxes {
     /// updates will be fetched.
     ///
     /// Should only be called while [`MessageBoxes::is_empty`].
-    pub fn set_state(&mut self, state: tl::enums::updates::State) {
+    pub fn set_state(&mut self, state: tl::types::updates::State) {
         trace!("setting state {:?}", state);
         debug_assert!(self.is_empty());
         let deadline = next_updates_deadline();
-        let state: tl::types::updates::State = state.into();
         self.set_entry(LiveEntry {
             key: Key::Common,
             pts: state.pts,
