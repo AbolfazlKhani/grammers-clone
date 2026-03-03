@@ -559,3 +559,31 @@ fn test_process_socket_updates_flow_common_pts_gap() {
         Some(get_difference(12, 56, 78))
     );
 }
+
+#[test]
+fn test_process_socket_updates_trickle_causes_gap() {
+    reset_time();
+    let gap_deadline: Instant = Instant::now() + POSSIBLE_GAP_TIMEOUT;
+    let mut message_boxes = MessageBoxes::new();
+    message_boxes.set_state(state(12, 34, 56, 78));
+
+    assert_eq!(
+        message_boxes.process_updates(updates(NO_DATE, NO_SEQ, 58)),
+        Ok((Vec::new(), Vec::new(), Vec::new()))
+    );
+    advance_time_by(2 * (POSSIBLE_GAP_TIMEOUT / 5));
+    assert_eq!(message_boxes.check_deadlines(), gap_deadline);
+    assert_eq!(
+        message_boxes.process_updates(updates(NO_DATE, NO_SEQ, 59)),
+        Ok((Vec::new(), Vec::new(), Vec::new()))
+    );
+    advance_time_by(2 * (POSSIBLE_GAP_TIMEOUT / 5));
+    assert_eq!(message_boxes.check_deadlines(), gap_deadline);
+    assert_eq!(
+        message_boxes.process_updates(updates(NO_DATE, NO_SEQ, 60)),
+        Ok((Vec::new(), Vec::new(), Vec::new()))
+    );
+    advance_time_by(2 * (POSSIBLE_GAP_TIMEOUT / 5));
+    assert_eq!(message_boxes.check_deadlines(), gap_deadline);
+    assert!(message_boxes.get_difference().is_some());
+}

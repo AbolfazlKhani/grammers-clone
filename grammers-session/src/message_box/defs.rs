@@ -87,9 +87,6 @@ pub struct MessageBoxes {
     /// Optimization field to quickly query all entries that are currently being fetched.
     pub(super) getting_diff_for: Vec<Key>,
 
-    /// Optimization field to quickly query all entries that have a possible gap.
-    pub(super) possible_gaps: Vec<Key>,
-
     /// Optimization field holding the closest deadline instant.
     pub(super) next_deadline: Instant,
 }
