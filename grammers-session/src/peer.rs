@@ -240,14 +240,14 @@ impl PeerId {
     ///
     /// Returns `None` if the peer was constructed without providing an identifier.
     /// For now, this can only happen if `self` represents the [`Self::self_user`].
-    pub fn bot_api_dialog_id(&self) -> Option<i64> {
+    pub fn bot_api_dialog_id(self) -> Option<i64> {
         (self.0 != SELF_USER_ID.0).then_some(self.0)
     }
 
     /// Returns the identity using the [Bot API dialog ID](https://core.telegram.org/api/bots/ids)
     /// format, which has the [`PeerKind`] embedded.
     #[doc(hidden)]
-    pub fn bot_api_dialog_id_unchecked(&self) -> i64 {
+    pub fn bot_api_dialog_id_unchecked(self) -> i64 {
         debug_assert!(self.0 != SELF_USER_ID.0);
         self.0
     }
@@ -256,7 +256,7 @@ impl PeerId {
     ///
     /// Returns `None` if the peer was constructed without providing an identifier.
     /// For now, this can only happen if `self` represents the [`Self::self_user`].
-    pub fn bare_id(&self) -> Option<i64> {
+    pub fn bare_id(self) -> Option<i64> {
         if self.0 == SELF_USER_ID.0 {
             return None;
         }
@@ -269,7 +269,7 @@ impl PeerId {
 
     /// Bare peer identifier without the [`PeerKind`] tag embedded, as used by Telegram's MTProto API.
     #[doc(hidden)]
-    pub fn bare_id_unchecked(&self) -> i64 {
+    pub fn bare_id_unchecked(self) -> i64 {
         debug_assert!(self.0 != SELF_USER_ID.0);
         match self.kind() {
             PeerKind::User => self.0,
@@ -311,7 +311,7 @@ impl PeerAuth {
     }
 
     /// Grants access to the internal access hash.
-    pub fn hash(&self) -> i64 {
+    pub fn hash(self) -> i64 {
         self.0
     }
 }
