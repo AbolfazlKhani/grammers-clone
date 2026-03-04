@@ -180,6 +180,19 @@ impl PeerId {
             .then_some(Self(-(1000000000000 + id)))
     }
 
+    /// Creates a peer identity from a [Bot API dialog ID](https://core.telegram.org/api/bots/ids).
+    pub fn from_bot_api_dialog_id(id: i64) -> Option<Self> {
+        if (1 <= id && id <= 0xffffffffff)
+            || (-999999999999 <= id && id <= -1)
+            || (-1997852516352 <= id && id <= -1000000000001
+                || (-4000000000000 <= id && id <= -2002147483649))
+        {
+            Some(Self(id))
+        } else {
+            None
+        }
+    }
+
     /// Creates a peer identity for a user or bot account.
     /// Panics if the ID is out of the valid range.
     #[doc(hidden)]
@@ -222,7 +235,8 @@ impl PeerId {
         }
     }
 
-    /// Returns the identity using the Bot API Dialog ID format, which has the [`PeerKind`] embedded.
+    /// Returns the identity using the [Bot API dialog ID](https://core.telegram.org/api/bots/ids)
+    /// format, which has the [`PeerKind`] embedded.
     ///
     /// Returns `None` if the peer was constructed without providing an identifier.
     /// For now, this can only happen if `self` represents the [`Self::self_user`].
@@ -230,7 +244,8 @@ impl PeerId {
         (self.0 != SELF_USER_ID.0).then_some(self.0)
     }
 
-    /// Returns the identity using the Bot API Dialog ID format, which has the [`PeerKind`] embedded.
+    /// Returns the identity using the [Bot API dialog ID](https://core.telegram.org/api/bots/ids)
+    /// format, which has the [`PeerKind`] embedded.
     #[doc(hidden)]
     pub fn bot_api_dialog_id_unchecked(&self) -> i64 {
         debug_assert!(self.0 != SELF_USER_ID.0);
