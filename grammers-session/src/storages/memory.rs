@@ -68,7 +68,9 @@ impl Session for MemorySession {
                 .lock()
                 .unwrap()
                 .peer_infos
-                .insert(peer.id(), peer.clone());
+                .entry(peer.id())
+                .or_insert_with(|| peer.clone())
+                .extend_info(&peer);
         })
     }
 

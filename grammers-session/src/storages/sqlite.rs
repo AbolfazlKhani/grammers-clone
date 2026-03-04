@@ -330,6 +330,13 @@ impl Session for SqliteSession {
     fn cache_peer(&self, peer: &PeerInfo) -> BoxFuture<'_, ()> {
         let peer = peer.clone();
         Box::pin(async move {
+            let peer = if let Some(mut existing_peer) = self.peer(peer.id()).await {
+                existing_peer.extend_info(&peer);
+                existing_peer
+            } else {
+                peer
+            };
+
             let db = self.database.lock().await;
             let stmt =
                 db.0.prepare("INSERT OR REPLACE INTO peer_info VALUES (:peer_id, :hash, :subtype)")

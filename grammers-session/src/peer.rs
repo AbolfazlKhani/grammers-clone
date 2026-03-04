@@ -344,6 +344,50 @@ impl PeerInfo {
             PeerInfo::Channel { auth, .. } => *auth,
         }
     }
+
+    /// Updates self with any new information contained in the other info.
+    ///
+    /// This is equivalent to performing an "or-assign" operation on all the fields.
+    ///
+    /// Returns `true` if the other info matches in type and identifier.
+    /// If they do not match, no fields will be updated, and `false` is returned instead.
+    pub fn extend_info(&mut self, other: &PeerInfo) -> bool {
+        match (self, &other) {
+            (
+                PeerInfo::User {
+                    id,
+                    auth,
+                    bot,
+                    is_self,
+                },
+                PeerInfo::User {
+                    id: new_id,
+                    auth: new_auth,
+                    bot: new_bot,
+                    is_self: new_self,
+                },
+            ) if id == new_id => {
+                *auth = auth.or(*new_auth);
+                *bot = bot.or(*new_bot);
+                *is_self = is_self.or(*new_self);
+                true
+            }
+            (PeerInfo::Chat { id }, PeerInfo::Chat { id: new_id }) if id == new_id => true,
+            (
+                PeerInfo::Channel { id, auth, kind },
+                PeerInfo::Channel {
+                    id: new_id,
+                    auth: new_auth,
+                    kind: new_kind,
+                },
+            ) if id == new_id => {
+                *auth = auth.or(*new_auth);
+                *kind = kind.or(*new_kind);
+                true
+            }
+            _ => false,
+        }
+    }
 }
 
 impl fmt::Display for PeerId {
