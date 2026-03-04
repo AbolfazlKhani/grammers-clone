@@ -823,7 +823,7 @@ impl<'a> From<&'a tl::types::User> for PeerInfo {
     fn from(user: &'a tl::types::User) -> Self {
         Self::User {
             id: user.id,
-            auth: user.access_hash.map(PeerAuth),
+            auth: user.access_hash.map(PeerAuth).filter(|_| !user.min),
             bot: Some(user.bot),
             is_self: Some(user.is_self),
         }
@@ -893,7 +893,7 @@ impl<'a> From<&'a tl::types::Channel> for PeerInfo {
     fn from(channel: &'a tl::types::Channel) -> Self {
         Self::Channel {
             id: channel.id,
-            auth: channel.access_hash.map(PeerAuth),
+            auth: channel.access_hash.map(PeerAuth).filter(|_| !channel.min),
             kind: <ChannelKind as TryFrom<&'a tl::types::Channel>>::try_from(channel).ok(),
         }
     }
