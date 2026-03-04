@@ -262,6 +262,31 @@ impl PeerId {
             PeerKind::Channel => -self.0 - 1000000000000,
         }
     }
+
+    /// Returns the `PeerRef` for this identifier with ambient authority (i.e. [`PeerAuth::default`]).
+    ///
+    /// This is useful when [`crate::Session::peer_ref`] returns `None` due to not having any cached.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # async fn f(session: &dyn grammers_session::Session, peer_id: grammers_session::PeerId) -> Result<(), Box<dyn std::error::Error>> {
+    /// let peer_ref = session
+    ///     .peer_ref(peer_id)
+    ///     .await
+    ///     .unwrap_or(peer_id.to_ambient_ref());
+    ///
+    /// // Can try using the `peer_ref` to e.g. send messages now, even if no auth was found in cache,
+    /// // if Telegram deems you have permission to do so (e.g. you're a bot or peer is your contact).
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn to_ambient_ref(self) -> PeerRef {
+        PeerRef {
+            id: self,
+            auth: PeerAuth::default(),
+        }
+    }
 }
 
 impl PeerAuth {

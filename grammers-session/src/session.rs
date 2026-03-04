@@ -62,6 +62,9 @@ pub trait Session: Send + Sync {
     /// Query the full peer reference from its identity.
     ///
     /// By default, this uses [`Session::peer`] to retrieve the [`PeerAuth`](crate::types::PeerAuth).
+    ///
+    /// If you want to obtain a `PeerRef` from a `PeerId` regardless of whether it is cached
+    /// in the session or not, you can pair this method with [`PeerId::to_ambient_ref`].
     fn peer_ref(&self, peer: PeerId) -> BoxFuture<'_, Option<PeerRef>> {
         Box::pin(async move {
             self.peer(peer)
