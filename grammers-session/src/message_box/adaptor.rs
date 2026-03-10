@@ -62,6 +62,7 @@ fn update_short_message(short: tl::types::UpdateShortMessage) -> tl::types::Upda
                 reactions: None,
                 id: short.id,
                 from_id: None,
+                from_rank: None,
                 from_boosts_applied: None,
                 peer_id: tl::types::PeerUser {
                     user_id: short.user_id,
@@ -133,6 +134,7 @@ fn update_short_chat_message(
                     .into(),
                 ),
                 from_boosts_applied: None,
+                from_rank: None,
                 peer_id: tl::types::PeerChat {
                     chat_id: short.chat_id,
                 }
@@ -265,6 +267,7 @@ pub(super) fn adapt(updates: UpdatesLike) -> Result<tl::types::UpdatesCombined, 
                         id: update.id,
                         from_id: request.send_as.as_ref().map(peer_from_input_peer),
                         from_boosts_applied: None,
+                        from_rank: None,
                         peer_id: peer_from_input_peer(&request.peer),
                         saved_peer_id: None,
                         fwd_from: None,

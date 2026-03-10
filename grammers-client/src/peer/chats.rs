@@ -42,7 +42,7 @@ impl AdminRightsBuilderInner {
                     channel: self.peer_ref.into(),
                     user_id: self.user.clone(),
                     admin_rights: tl::enums::ChatAdminRights::Rights(self.rights.clone()),
-                    rank: self.rank.clone(),
+                    rank: Some(self.rank.clone()),
                 })
                 .await
                 .map(drop)
@@ -136,6 +136,7 @@ impl<F: Future<Output = BuilderRes>> AdminRightsBuilder<F> {
                     edit_stories: false,
                     delete_stories: false,
                     manage_direct_messages: false,
+                    manage_ranks: false,
                 },
             }),
             fut_gen,
@@ -209,6 +210,7 @@ impl<F: Future<Output = BuilderRes>> AdminRightsBuilder<F> {
                         edit_stories: true,
                         delete_stories: true,
                         manage_direct_messages: true, // TODO check it
+                        manage_ranks: true,
                     };
                     break;
                 }
@@ -418,6 +420,7 @@ impl<F: Future<Output = BuilderRes>> BannedRightsBuilder<F> {
                     send_voices: false,
                     send_docs: false,
                     send_plain: false,
+                    edit_rank: false,
                     until_date: 0,
                 },
             }),

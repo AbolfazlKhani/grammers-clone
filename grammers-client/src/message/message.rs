@@ -79,6 +79,7 @@ impl Message {
                 id: updates.id,
                 from_id: None, // TODO self
                 from_boosts_applied: None,
+                from_rank: None,
                 peer_id: peer.id.into(),
                 saved_peer_id: None,
                 fwd_from: None,
