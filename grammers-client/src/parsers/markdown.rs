@@ -216,6 +216,7 @@ pub fn generate_markdown_message(message: &str, entities: &[tl::enums::MessageEn
             ME::BankCard(_) => {}
             ME::Spoiler(_) => {}
             ME::CustomEmoji(_) => {}
+            ME::FormattedDate(_) => {}
         });
 
     inject_into_message(message, insertions)
