@@ -229,11 +229,6 @@ impl SenderPoolRunner {
     async fn process_request(&mut self, request: Request) -> ControlFlow<()> {
         match request {
             Request::Invoke { dc_id, body, tx } => {
-                let Some(mut dc_option) = self.session.dc_option(dc_id) else {
-                    let _ = tx.send(Err(InvocationError::InvalidDc));
-                    return ControlFlow::Continue(());
-                };
-
                 let connection = match self
                     .connections
                     .iter()
@@ -241,6 +236,11 @@ impl SenderPoolRunner {
                 {
                     Some(connection) => connection,
                     None => {
+                        let Some(mut dc_option) = self.session.dc_option(dc_id) else {
+                            let _ = tx.send(Err(InvocationError::InvalidDc));
+                            return ControlFlow::Continue(());
+                        };
+
                         let sender = match self.connect_sender(&dc_option).await {
                             Ok(t) => t,
                             Err(e) => {

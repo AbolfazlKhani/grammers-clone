@@ -285,7 +285,7 @@ impl PeerId {
     /// # Examples
     ///
     /// ```
-    /// # async fn f(session: &dyn grammers_session::Session, peer_id: grammers_session::PeerId) -> Result<(), Box<dyn std::error::Error>> {
+    /// # async fn f(session: &dyn grammers_session::Session, peer_id: grammers_session::types::PeerId) -> Result<(), Box<dyn std::error::Error>> {
     /// let peer_ref = session
     ///     .peer_ref(peer_id)
     ///     .await
