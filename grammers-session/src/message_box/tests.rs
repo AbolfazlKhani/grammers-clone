@@ -78,6 +78,25 @@ fn updates(date: i32, seq: i32, pts: i32) -> UpdatesLike {
     }))
 }
 
+fn channel_update(channel_id: i64, pts: i32) -> tl::enums::Update {
+    tl::enums::Update::DeleteChannelMessages(tl::types::UpdateDeleteChannelMessages {
+        channel_id,
+        messages: Vec::new(),
+        pts,
+        pts_count: 1,
+    })
+}
+
+fn channel_updates(channel_id: i64, date: i32, seq: i32, pts: i32) -> UpdatesLike {
+    UpdatesLike::Updates(tl::enums::Updates::Updates(tl::types::Updates {
+        updates: vec![channel_update(channel_id, pts)],
+        users: Vec::new(),
+        chats: Vec::new(),
+        date,
+        seq,
+    }))
+}
+
 fn updates_ok(date: i32, seq: i32, pts: i32) -> Result<UpdateAndPeers, Gap> {
     Ok((
         vec![(
@@ -586,4 +605,27 @@ fn test_process_socket_updates_trickle_causes_gap() {
     advance_time_by(2 * (POSSIBLE_GAP_TIMEOUT / 5));
     assert_eq!(message_boxes.check_deadlines(), gap_deadline);
     assert!(message_boxes.get_difference().is_some());
+}
+
+#[test]
+fn test_process_socket_update_for_new_channel_dispatches_first_update() {
+    reset_time();
+    let mut message_boxes = MessageBoxes::new();
+    let (channel_id, date, seq, pts) = (12, 0, 0, 78);
+    let ret = message_boxes.process_updates(channel_updates(channel_id, date, seq, pts));
+    assert_eq!(
+        ret,
+        Ok((
+            vec![(
+                channel_update(channel_id, pts),
+                State {
+                    date,
+                    seq,
+                    message_box: Some(MessageBox::Channel { channel_id, pts })
+                }
+            )],
+            vec![],
+            vec![]
+        ))
+    );
 }

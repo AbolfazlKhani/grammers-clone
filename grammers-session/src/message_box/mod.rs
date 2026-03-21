@@ -172,12 +172,12 @@ impl MessageBoxes {
     fn update_or_insert_entry(
         &mut self,
         key: Key,
-        insert: LiveEntry,
+        inserter: impl FnOnce() -> LiveEntry,
         updater: impl FnOnce(&mut LiveEntry),
     ) {
         match self.entries.binary_search_by_key(&key, |entry| entry.key) {
             Ok(i) => updater(&mut self.entries[i]),
-            Err(i) => self.entries.insert(i, insert),
+            Err(i) => self.entries.insert(i, inserter()),
         }
     }
 
@@ -484,13 +484,18 @@ impl MessageBoxes {
             }
 
             let mut gap_deadline = None;
+            let mut return_new_update = false;
+            let mut return_changed_update = false;
             self.update_or_insert_entry(
                 info.key,
-                LiveEntry {
-                    key: info.key,
-                    pts: info.pts,
-                    deadline,
-                    possible_gap: None,
+                || {
+                    return_new_update = true;
+                    LiveEntry {
+                        key: info.key,
+                        pts: info.pts,
+                        deadline,
+                        possible_gap: None,
+                    }
                 },
                 |entry| {
                     match (entry.pts + info.count).cmp(&info.pts) {
@@ -498,7 +503,7 @@ impl MessageBoxes {
                         Ordering::Equal => {
                             entry.pts = info.pts;
                             entry.deadline = deadline;
-                            result.push((update, mk_state(Some(info.into()))));
+                            return_changed_update = true;
                         }
                         // Ignore
                         Ordering::Greater => {
@@ -521,7 +526,7 @@ impl MessageBoxes {
                                     updates: Vec::new(),
                                 })
                                 .updates
-                                .push(update);
+                                .push(update.clone());
                         }
                     };
 
@@ -553,6 +558,9 @@ impl MessageBoxes {
                     }
                 },
             );
+            if return_new_update || return_changed_update {
+                result.push((update, mk_state(Some(info.into()))));
+            }
 
             self.next_deadline = self.next_deadline.min(gap_deadline.unwrap_or(deadline));
         }
