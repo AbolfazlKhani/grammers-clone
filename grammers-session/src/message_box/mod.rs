@@ -349,8 +349,13 @@ impl MessageBoxes {
     ///
     /// Clears any previous gaps.
     fn try_begin_get_diff(&mut self, key: Key) {
-        self.update_entry(key, |entry| entry.possible_gap = None);
-        self.getting_diff_for.push(key);
+        if !self.getting_diff_for.contains(&key) {
+            if self.update_entry(key, |entry| entry.possible_gap = None) {
+                self.getting_diff_for.push(key);
+            } else {
+                info!("tried to begin getting difference but do not have entry for key: {key:?}");
+            }
+        }
     }
 
     /// Finish getting difference for the given entry, and resets its deadline.
@@ -460,7 +465,16 @@ impl MessageBoxes {
         for update in updates {
             if let tl::enums::Update::ChannelTooLong(u) = update {
                 // Can skip this one early since no processing can be done for the entry.
-                self.try_begin_get_diff(Key::Channel(u.channel_id));
+                let key = Key::Channel(u.channel_id);
+                if let Some(pts) = u.pts {
+                    self.set_entry(LiveEntry {
+                        key,
+                        pts,
+                        deadline,
+                        possible_gap: None,
+                    });
+                }
+                self.try_begin_get_diff(key);
                 continue;
             }
 
