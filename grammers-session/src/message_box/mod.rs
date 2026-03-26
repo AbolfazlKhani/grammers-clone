@@ -169,15 +169,16 @@ impl MessageBoxes {
         }
     }
 
-    fn update_or_insert_entry(
-        &mut self,
-        key: Key,
-        inserter: impl FnOnce() -> LiveEntry,
-        updater: impl FnOnce(&mut LiveEntry),
-    ) {
-        match self.entries.binary_search_by_key(&key, |entry| entry.key) {
+    fn force_update_entry(&mut self, mut entry: LiveEntry, updater: impl FnOnce(&mut LiveEntry)) {
+        match self
+            .entries
+            .binary_search_by_key(&entry.key, |entry| entry.key)
+        {
             Ok(i) => updater(&mut self.entries[i]),
-            Err(i) => self.entries.insert(i, inserter()),
+            Err(i) => {
+                updater(&mut entry);
+                self.entries.insert(i, entry);
+            }
         }
     }
 
@@ -484,18 +485,12 @@ impl MessageBoxes {
             }
 
             let mut gap_deadline = None;
-            let mut return_new_update = false;
-            let mut return_changed_update = false;
-            self.update_or_insert_entry(
-                info.key,
-                || {
-                    return_new_update = true;
-                    LiveEntry {
-                        key: info.key,
-                        pts: info.pts,
-                        deadline,
-                        possible_gap: None,
-                    }
+            self.force_update_entry(
+                LiveEntry {
+                    key: info.key,
+                    pts: info.pts - info.count,
+                    deadline,
+                    possible_gap: None,
                 },
                 |entry| {
                     match (entry.pts + info.count).cmp(&info.pts) {
@@ -503,7 +498,7 @@ impl MessageBoxes {
                         Ordering::Equal => {
                             entry.pts = info.pts;
                             entry.deadline = deadline;
-                            return_changed_update = true;
+                            result.push((update, mk_state(Some(info.into()))));
                         }
                         // Ignore
                         Ordering::Greater => {
@@ -558,9 +553,6 @@ impl MessageBoxes {
                     }
                 },
             );
-            if return_new_update || return_changed_update {
-                result.push((update, mk_state(Some(info.into()))));
-            }
 
             self.next_deadline = self.next_deadline.min(gap_deadline.unwrap_or(deadline));
         }
