@@ -202,6 +202,8 @@ impl InputMessage {
                 file: file.raw,
                 stickers: None,
                 ttl_seconds: self.media_ttl,
+                live_photo: false,
+                video: None,
             })
             .into(),
         );

@@ -128,6 +128,8 @@ impl Photo {
                 spoiler: false,
                 photo: Some(photo),
                 ttl_seconds: None,
+                live_photo: false,
+                video: None,
             },
         }
     }
@@ -154,6 +156,8 @@ impl Photo {
                 _ => eInputPhoto::Empty,
             },
             ttl_seconds: self.raw.ttl_seconds,
+            live_photo: false,
+            video: None,
         }
     }
 
@@ -540,7 +544,7 @@ impl Poll {
                 tl::enums::Poll::Poll(poll) => poll,
             },
             raw_results: match poll.results {
-                tl::enums::PollResults::Results(results) => results,
+                tl::enums::PollResults::Results(results) => *results,
             },
         }
     }
@@ -551,6 +555,8 @@ impl Poll {
             correct_answers: None,
             solution: None,
             solution_entities: None,
+            attached_media: None,
+            solution_media: None,
         }
     }
 
@@ -570,10 +576,8 @@ impl Poll {
     }
 
     /// Returns an iterator over the poll answer options.
-    pub fn iter_answers(&self) -> impl Iterator<Item = &tl::types::PollAnswer> {
-        self.raw.answers.iter().map(|answer| match answer {
-            tl::enums::PollAnswer::Answer(answer) => answer,
-        })
+    pub fn iter_answers(&self) -> impl Iterator<Item = &tl::enums::PollAnswer> {
+        self.raw.answers.iter()
     }
 
     /// Total voters that took part in the vote.
@@ -803,7 +807,7 @@ impl Media {
             M::Game(_) => None,
             M::Invoice(_) => None,
             M::GeoLive(geolive) => Some(Self::GeoLive(GeoLive::from_raw_media(geolive))),
-            M::Poll(poll) => Some(Self::Poll(Poll::from_raw_media(poll))),
+            M::Poll(poll) => Some(Self::Poll(Poll::from_raw_media(*poll))),
             M::Dice(dice) => Some(Self::Dice(Dice::from_raw_media(dice))),
             M::Story(_) => None,
             M::Giveaway(_) => None,

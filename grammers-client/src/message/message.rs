@@ -98,6 +98,7 @@ impl Message {
                         quote_entities: None,
                         quote_offset: None,
                         todo_item_id: None,
+                        poll_option: None,
                     }
                     .into()
                 }),

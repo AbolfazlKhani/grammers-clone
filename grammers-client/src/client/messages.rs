@@ -529,6 +529,7 @@ impl Client {
                         quote_offset: None,
                         monoforum_peer_id: None,
                         todo_item_id: None,
+                        poll_option: None,
                     }
                     .into()
                 }),
@@ -567,6 +568,7 @@ impl Client {
                         quote_offset: None,
                         monoforum_peer_id: None,
                         todo_item_id: None,
+                        poll_option: None,
                     }
                     .into()
                 }),
@@ -723,6 +725,7 @@ impl Client {
                         quote_offset: None,
                         monoforum_peer_id: None,
                         todo_item_id: None,
+                        poll_option: None,
                     }
                     .into()
                 }),
