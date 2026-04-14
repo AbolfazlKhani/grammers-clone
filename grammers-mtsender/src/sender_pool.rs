@@ -336,7 +336,7 @@ impl SenderPoolRunner {
                 sender = connect(transport(), addr()).await?;
                 sender.invoke(&init_connection).await?
             }
-            Err(e) => return Err(dbg!(e).into()),
+            Err(e) => return Err(e.into()),
         };
 
         self.update_config(remote_config).await;
