@@ -19,7 +19,7 @@ Used to log messages during update processing.
 
 Used to test that this file lists all dependencies from `Cargo.toml`.
 
-## libsql
+## sqlx
 
 SQLite-based session storage.
 

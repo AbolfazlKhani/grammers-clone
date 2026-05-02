@@ -7,11 +7,11 @@
 // except according to those terms.
 
 use std::collections::HashMap;
-use std::path::Path;
 use std::sync::Mutex;
 
 use futures_core::future::BoxFuture;
-use libsql::{named_params, params};
+use sqlx::sqlite::SqliteRow;
+use sqlx::{Connection, Row, SqliteConnection};
 use tokio::sync::Mutex as AsyncMutex;
 
 use crate::types::{
@@ -22,8 +22,6 @@ use crate::{DEFAULT_DC, KNOWN_DC_OPTIONS, Session};
 
 const VERSION: i64 = 1;
 
-struct Database(libsql::Connection);
-
 struct Cache {
     pub home_dc: i32,
     pub dc_options: HashMap<i32, DcOption>,
@@ -31,7 +29,7 @@ struct Cache {
 
 /// SQLite-based storage. This is the recommended option.
 pub struct SqliteSession {
-    database: AsyncMutex<Database>,
+    database: AsyncMutex<SqliteConnection>,
     cache: Mutex<Cache>,
 }
 
@@ -45,156 +43,106 @@ enum PeerSubtype {
     Gigagroup = 12,
 }
 
-impl Database {
-    async fn init(&self) -> libsql::Result<()> {
-        let mut user_version: i64 = self
-            .fetch_one("PRAGMA user_version", params![], |row| row.get(0))
-            .await?
-            .unwrap_or(0);
-        if user_version == VERSION {
-            return Ok(());
-        }
-
-        if user_version == 0 {
-            self.migrate_v0_to_v1().await?;
-            user_version += 1;
-        }
-        if user_version == VERSION {
-            // Can't bind PRAGMA parameters, but `VERSION` is not user-controlled input.
-            self.0
-                .execute(&format!("PRAGMA user_version = {VERSION}"), params![])
-                .await?;
-        }
-        Ok(())
+async fn init(db: &mut SqliteConnection) -> sqlx::Result<()> {
+    let mut user_version: i64 = sqlx::query_scalar("PRAGMA user_version")
+        .fetch_optional(&mut *db)
+        .await?
+        .unwrap_or(0);
+    if user_version == VERSION {
+        return Ok(());
     }
 
-    async fn migrate_v0_to_v1(&self) -> libsql::Result<()> {
-        let transaction = self.begin_transaction().await?;
-        transaction
-            .execute(
-                "CREATE TABLE dc_home (
-                dc_id INTEGER NOT NULL,
-                PRIMARY KEY(dc_id))",
-                params![],
-            )
-            .await?;
-        transaction
-            .execute(
-                "CREATE TABLE dc_option (
-                dc_id INTEGER NOT NULL,
-                ipv4 TEXT NOT NULL,
-                ipv6 TEXT NOT NULL,
-                auth_key BLOB,
-                PRIMARY KEY (dc_id))",
-                params![],
-            )
-            .await?;
-        transaction
-            .execute(
-                "CREATE TABLE peer_info (
-                peer_id INTEGER NOT NULL,
-                hash INTEGER,
-                subtype INTEGER,
-                PRIMARY KEY (peer_id))",
-                params![],
-            )
-            .await?;
-        transaction
-            .execute(
-                "CREATE TABLE update_state (
-                pts INTEGER NOT NULL,
-                qts INTEGER NOT NULL,
-                date INTEGER NOT NULL,
-                seq INTEGER NOT NULL)",
-                params![],
-            )
-            .await?;
-        transaction
-            .execute(
-                "CREATE TABLE channel_state (
-                peer_id INTEGER NOT NULL,
-                pts INTEGER NOT NULL,
-                PRIMARY KEY (peer_id))",
-                params![],
-            )
-            .await?;
-
-        transaction.commit().await?;
-        Ok(())
+    if user_version == 0 {
+        migrate_v0_to_v1(&mut *db).await?;
+        user_version += 1;
     }
-
-    async fn begin_transaction(&self) -> libsql::Result<libsql::Transaction> {
-        self.0.transaction().await
+    if user_version == VERSION {
+        // Can't bind PRAGMA parameters, but `VERSION` is not user-controlled input.
+        sqlx::query(&format!("PRAGMA user_version = {VERSION}"))
+            .execute(&mut *db)
+            .await?;
     }
+    Ok(())
+}
 
-    async fn fetch_one<
-        T,
-        P: libsql::params::IntoParams,
-        F: FnOnce(libsql::Row) -> libsql::Result<T>,
-    >(
-        &self,
-        statement: &str,
-        params: P,
-        select: F,
-    ) -> libsql::Result<Option<T>> {
-        let mut statement = self.0.prepare(statement).await?;
-        let result = statement.query_row(params).await;
-        match result {
-            Ok(value) => Ok(Some(select(value)?)),
-            Err(libsql::Error::QueryReturnedNoRows) => Ok(None),
-            Err(e) => Err(e),
-        }
-    }
+async fn migrate_v0_to_v1(db: &mut SqliteConnection) -> sqlx::Result<()> {
+    let mut tx = db.begin().await?;
+    sqlx::query(
+        "CREATE TABLE dc_home (
+            dc_id INTEGER NOT NULL,
+            PRIMARY KEY(dc_id))",
+    )
+    .execute(&mut *tx)
+    .await?;
+    sqlx::query(
+        "CREATE TABLE dc_option (
+            dc_id INTEGER NOT NULL,
+            ipv4 TEXT NOT NULL,
+            ipv6 TEXT NOT NULL,
+            auth_key BLOB,
+            PRIMARY KEY (dc_id))",
+    )
+    .execute(&mut *tx)
+    .await?;
+    sqlx::query(
+        "CREATE TABLE peer_info (
+            peer_id INTEGER NOT NULL,
+            hash INTEGER,
+            subtype INTEGER,
+            PRIMARY KEY (peer_id))",
+    )
+    .execute(&mut *tx)
+    .await?;
+    sqlx::query(
+        "CREATE TABLE update_state (
+            pts INTEGER NOT NULL,
+            qts INTEGER NOT NULL,
+            date INTEGER NOT NULL,
+            seq INTEGER NOT NULL)",
+    )
+    .execute(&mut *tx)
+    .await?;
+    sqlx::query(
+        "CREATE TABLE channel_state (
+            peer_id INTEGER NOT NULL,
+            pts INTEGER NOT NULL,
+            PRIMARY KEY (peer_id))",
+    )
+    .execute(&mut *tx)
+    .await?;
 
-    async fn fetch_all<
-        T,
-        P: libsql::params::IntoParams,
-        F: FnMut(libsql::Row) -> libsql::Result<T>,
-    >(
-        &self,
-        statement: &str,
-        params: P,
-        mut select: F,
-    ) -> libsql::Result<Vec<T>> {
-        let statement = self.0.prepare(statement).await?;
-        let mut rows = statement.query(params).await?;
-        let mut result = Vec::new();
-        while let Some(row) = rows.next().await? {
-            result.push(select(row)?);
-        }
-        Ok(result)
-    }
+    tx.commit().await?;
+    Ok(())
 }
 
 impl SqliteSession {
     /// Open a connection to the SQLite database at `path`,
     /// creating one if it doesn't exist.
-    pub async fn open<P: AsRef<Path>>(path: P) -> libsql::Result<Self> {
-        let conn = libsql::Builder::new_local(path).build().await?.connect()?;
-        let db = Database(conn);
-        db.init().await?;
+    pub async fn open(url: &str) -> sqlx::Result<Self> {
+        let mut db = SqliteConnection::connect(url).await?;
+        init(&mut db).await?;
 
-        let home_dc = db
-            .fetch_one("SELECT * FROM dc_home LIMIT 1", named_params![], |row| {
-                Ok(row.get::<i32>(0)?)
-            })
+        let home_dc = sqlx::query("SELECT * FROM dc_home LIMIT 1")
+            .fetch_optional(&mut db)
             .await?
+            .map(|row| row.get(0))
             .unwrap_or(DEFAULT_DC);
 
-        let dc_options = db
-            .fetch_all("SELECT * FROM dc_option", named_params![], |row| {
-                Ok(DcOption {
-                    id: row.get::<i32>(0)?,
-                    ipv4: row.get::<String>(1)?.parse().unwrap(),
-                    ipv6: row.get::<String>(2)?.parse().unwrap(),
-                    auth_key: row
-                        .get::<Option<Vec<u8>>>(3)?
-                        .map(|auth_key| auth_key.try_into().unwrap()),
-                })
-            })
+        let dc_options = sqlx::query("SELECT * FROM dc_option")
+            .fetch_all(&mut db)
             .await?
             .into_iter()
-            .map(|dc_option| (dc_option.id, dc_option))
+            .map(|row| {
+                let dc_option = DcOption {
+                    id: row.get(0),
+                    ipv4: row.get::<'_, String, _>(1).parse().unwrap(),
+                    ipv6: row.get::<'_, String, _>(2).parse().unwrap(),
+                    auth_key: row
+                        .get::<'_, Option<Vec<u8>>, _>(3)
+                        .map(|auth_key| auth_key.try_into().unwrap()),
+                };
+                (dc_option.id, dc_option)
+            })
             .collect();
 
         Ok(SqliteSession {
@@ -215,23 +163,18 @@ impl Session for SqliteSession {
     fn set_home_dc_id(&self, dc_id: i32) -> BoxFuture<'_, ()> {
         self.cache.lock().unwrap().home_dc = dc_id;
         Box::pin(async move {
-            let transaction = self
-                .database
-                .lock()
-                .await
-                .begin_transaction()
-                .await
-                .unwrap();
-            transaction
-                .execute("DELETE FROM dc_home", params![])
+            let mut db = self.database.lock().await;
+            let mut tx = db.begin().await.unwrap();
+            sqlx::query("DELETE FROM dc_home")
+                .execute(&mut *tx)
                 .await
                 .unwrap();
-            let stmt = transaction
-                .prepare("INSERT INTO dc_home VALUES (:dc_id)")
+            sqlx::query("INSERT INTO dc_home(dc_id) VALUES (?)")
+                .bind(dc_id)
+                .execute(&mut *tx)
                 .await
                 .unwrap();
-            stmt.execute(named_params! {":dc_id": dc_id}).await.unwrap();
-            transaction.commit().await.unwrap();
+            tx.commit().await.unwrap();
         })
     }
 
@@ -259,16 +202,17 @@ impl Session for SqliteSession {
 
         let dc_option = dc_option.clone();
         Box::pin(async move {
-            let db = self.database.lock().await;
-            db.0.execute(
-                "INSERT OR REPLACE INTO dc_option VALUES (:dc_id, :ipv4, :ipv6, :auth_key)",
-                named_params! {
-                    ":dc_id": dc_option.id,
-                    ":ipv4": dc_option.ipv4.to_string(),
-                    ":ipv6": dc_option.ipv6.to_string(),
-                    ":auth_key": dc_option.auth_key.map(|k| k.to_vec()),
-                },
+            let mut db = self.database.lock().await;
+            sqlx::query(
+                "INSERT OR REPLACE INTO dc_option
+                (dc_id, ipv4, ipv6, auth_key)
+                VALUES (?, ?, ?, ?)",
             )
+            .bind(dc_option.id)
+            .bind(dc_option.ipv4.to_string())
+            .bind(dc_option.ipv6.to_string())
+            .bind(dc_option.auth_key.map(|k| k.to_vec()))
+            .execute(&mut *db)
             .await
             .unwrap();
         })
@@ -276,13 +220,13 @@ impl Session for SqliteSession {
 
     fn peer(&self, peer: PeerId) -> BoxFuture<'_, Option<PeerInfo>> {
         Box::pin(async move {
-            let db = self.database.lock().await;
-            let map_row = |row: libsql::Row| {
-                let subtype = row.get::<Option<i64>>(2)?.map(|s| s as u8);
-                Ok(match peer.kind() {
+            let mut db = self.database.lock().await;
+            let map_row = |row: SqliteRow| {
+                let subtype = row.get::<'_, Option<i64>, _>(2).map(|s| s as u8);
+                match peer.kind() {
                     PeerKind::User => PeerInfo::User {
-                        id: PeerId::user_unchecked(row.get::<i64>(0)?).bare_id_unchecked(),
-                        auth: row.get::<Option<i64>>(1)?.map(PeerAuth::from_hash),
+                        id: PeerId::user_unchecked(row.get::<'_, i64, _>(0)).bare_id_unchecked(),
+                        auth: row.get::<'_, Option<i64>, _>(1).map(PeerAuth::from_hash),
                         bot: subtype.map(|s| s & PeerSubtype::UserBot as u8 != 0),
                         is_self: subtype.map(|s| s & PeerSubtype::UserSelf as u8 != 0),
                     },
@@ -291,7 +235,7 @@ impl Session for SqliteSession {
                     },
                     PeerKind::Channel => PeerInfo::Channel {
                         id: peer.bare_id_unchecked(),
-                        auth: row.get::<Option<i64>>(1)?.map(PeerAuth::from_hash),
+                        auth: row.get::<'_, Option<i64>, _>(1).map(PeerAuth::from_hash),
                         kind: subtype.and_then(|s| {
                             if (s & PeerSubtype::Gigagroup as u8) == PeerSubtype::Gigagroup as u8 {
                                 Some(ChannelKind::Gigagroup)
@@ -304,25 +248,23 @@ impl Session for SqliteSession {
                             }
                         }),
                     },
-                })
+                }
             };
 
             if let Some(peer_id) = peer.bot_api_dialog_id() {
-                db.fetch_one(
-                    "SELECT * FROM peer_info WHERE peer_id = :peer_id LIMIT 1",
-                    named_params! {":peer_id": peer_id},
-                    map_row,
-                )
-                .await
-                .unwrap()
+                sqlx::query("SELECT * FROM peer_info WHERE peer_id = ? LIMIT 1")
+                    .bind(peer_id)
+                    .fetch_optional(&mut *db)
+                    .await
+                    .unwrap()
+                    .map(map_row)
             } else {
-                db.fetch_one(
-                    "SELECT * FROM peer_info WHERE subtype & :type LIMIT 1",
-                    named_params! {":type": PeerSubtype::UserSelf as i64},
-                    map_row,
-                )
-                .await
-                .unwrap()
+                sqlx::query("SELECT * FROM peer_info WHERE subtype & ? LIMIT 1")
+                    .bind(PeerSubtype::UserSelf as i64)
+                    .fetch_optional(&mut *db)
+                    .await
+                    .unwrap()
+                    .map(map_row)
             }
         })
     }
@@ -337,11 +279,7 @@ impl Session for SqliteSession {
                 peer
             };
 
-            let db = self.database.lock().await;
-            let stmt =
-                db.0.prepare("INSERT OR REPLACE INTO peer_info VALUES (:peer_id, :hash, :subtype)")
-                    .await
-                    .unwrap();
+            let mut db = self.database.lock().await;
             let subtype = match peer {
                 PeerInfo::User { bot, is_self, .. } => {
                     match (bot.unwrap_or_default(), is_self.unwrap_or_default()) {
@@ -358,174 +296,152 @@ impl Session for SqliteSession {
                     ChannelKind::Gigagroup => PeerSubtype::Gigagroup,
                 }),
             };
-            let mut params = vec![];
             let peer_id = peer.id().bot_api_dialog_id_unchecked();
-            params.push((":peer_id".to_owned(), peer_id));
-            let hash = peer.auth().unwrap_or_default().hash();
-            if peer.auth().is_some() {
-                params.push((":hash".to_owned(), hash));
-            }
+            let hash = peer.auth().map(|auth| auth.hash());
             let subtype = subtype.map(|s| s as i64);
-            if subtype.is_some() {
-                params.push((":subtype".to_owned(), subtype.unwrap()));
-            }
-            stmt.execute(params).await.unwrap();
+            sqlx::query(
+                "INSERT OR REPLACE INTO peer_info
+                    (peer_id, hash, subtype)
+                    VALUES (?, ?, ?)",
+            )
+            .bind(peer_id)
+            .bind(hash)
+            .bind(subtype)
+            .execute(&mut *db)
+            .await
+            .unwrap();
         })
     }
 
     fn updates_state(&self) -> BoxFuture<'_, UpdatesState> {
         Box::pin(async move {
-            let db = self.database.lock().await;
-            let mut state = db
-                .fetch_one(
-                    "SELECT * FROM update_state LIMIT 1",
-                    named_params![],
-                    |row| {
-                        Ok(UpdatesState {
-                            pts: row.get(0)?,
-                            qts: row.get(1)?,
-                            date: row.get(2)?,
-                            seq: row.get(3)?,
-                            channels: Vec::new(),
-                        })
-                    },
-                )
+            let mut db = self.database.lock().await;
+            let mut state = sqlx::query("SELECT pts, qts, date, seq FROM update_state LIMIT 1")
+                .fetch_optional(&mut *db)
                 .await
                 .unwrap()
-                .unwrap_or_default();
-            state.channels = db
-                .fetch_all("SELECT * FROM channel_state", named_params![], |row| {
-                    Ok(ChannelState {
-                        id: row.get(0)?,
-                        pts: row.get(1)?,
-                    })
+                .map(|row| UpdatesState {
+                    pts: row.get(0),
+                    qts: row.get(1),
+                    date: row.get(2),
+                    seq: row.get(3),
+                    channels: Vec::new(),
                 })
+                .unwrap_or_default();
+            state.channels = sqlx::query("SELECT peer_id, pts FROM channel_state")
+                .fetch_all(&mut *db)
                 .await
-                .unwrap();
+                .unwrap()
+                .into_iter()
+                .map(|row| ChannelState {
+                    id: row.get(0),
+                    pts: row.get(1),
+                })
+                .collect();
             state
         })
     }
 
     fn set_update_state(&self, update: UpdateState) -> BoxFuture<'_, ()> {
         Box::pin(async move {
-            let db = self.database.lock().await;
-            let transaction = db.begin_transaction().await.unwrap();
+            let mut db = self.database.lock().await;
+            let mut tx = db.begin().await.unwrap();
 
             match update {
                 UpdateState::All(updates_state) => {
-                    transaction
-                        .execute("DELETE FROM update_state", params![])
+                    sqlx::query("DELETE FROM update_state")
+                        .execute(&mut *tx)
                         .await
                         .unwrap();
-                    transaction
-                        .execute(
-                            "INSERT INTO update_state VALUES (:pts, :qts, :date, :seq)",
-                            named_params! {
-                                ":pts": updates_state.pts,
-                                ":qts": updates_state.qts,
-                                ":date": updates_state.date,
-                                ":seq": updates_state.seq,
-                            },
-                        )
-                        .await
-                        .unwrap();
+                    sqlx::query(
+                        "INSERT INTO update_state(pts, qts, date, seq)
+                            VALUES (?, ?, ?, ?)",
+                    )
+                    .bind(updates_state.pts)
+                    .bind(updates_state.qts)
+                    .bind(updates_state.date)
+                    .bind(updates_state.seq)
+                    .execute(&mut *tx)
+                    .await
+                    .unwrap();
 
-                    transaction
-                        .execute("DELETE FROM channel_state", params![])
+                    sqlx::query("DELETE FROM channel_state")
+                        .execute(&mut *tx)
                         .await
                         .unwrap();
                     for channel in updates_state.channels {
-                        transaction
-                            .execute(
-                                "INSERT INTO channel_state VALUES (:peer_id, :pts)",
-                                named_params! {
-                                    ":peer_id": channel.id,
-                                    ":pts": channel.pts,
-                                },
-                            )
+                        sqlx::query("INSERT INTO channel_state(peer_id, pts) VALUES (?, ?)")
+                            .bind(channel.id)
+                            .bind(channel.pts)
+                            .execute(&mut *tx)
                             .await
                             .unwrap();
                     }
                 }
                 UpdateState::Primary { pts, date, seq } => {
-                    let previous = db
-                        .fetch_one(
-                            "SELECT * FROM update_state LIMIT 1",
-                            named_params![],
-                            |_| Ok(()),
-                        )
+                    let previous = sqlx::query("SELECT 1 FROM update_state LIMIT 1")
+                        .fetch_optional(&mut *tx)
                         .await
                         .unwrap();
 
                     if previous.is_some() {
-                        transaction
-                            .execute(
-                                "UPDATE update_state SET pts = :pts, date = :date, seq = :seq",
-                                named_params! {
-                                    ":pts": pts,
-                                    ":date": date,
-                                    ":seq": seq,
-                                },
-                            )
+                        sqlx::query("UPDATE update_state SET pts = ?, date = ?, seq = ?")
+                            .bind(pts)
+                            .bind(date)
+                            .bind(seq)
+                            .execute(&mut *tx)
                             .await
                             .unwrap();
                     } else {
-                        transaction
-                            .execute(
-                                "INSERT INTO update_state VALUES (:pts, 0, :date, :seq)",
-                                named_params! {
-                                    ":pts": pts,
-                                    ":date": date,
-                                    ":seq": seq,
-                                },
-                            )
-                            .await
-                            .unwrap();
+                        sqlx::query(
+                            "INSERT INTO update_state(pts, qts, date, seq)
+                                VALUES (?, 0, ?, ?)",
+                        )
+                        .bind(pts)
+                        .bind(date)
+                        .bind(seq)
+                        .execute(&mut *tx)
+                        .await
+                        .unwrap();
                     }
                 }
                 UpdateState::Secondary { qts } => {
-                    let previous = db
-                        .fetch_one(
-                            "SELECT * FROM update_state LIMIT 1",
-                            named_params![],
-                            |_| Ok(()),
-                        )
+                    let previous = sqlx::query("SELECT 1 FROM update_state LIMIT 1")
+                        .fetch_optional(&mut *tx)
                         .await
                         .unwrap();
 
                     if previous.is_some() {
-                        transaction
-                            .execute(
-                                "UPDATE update_state SET qts = :qts",
-                                named_params! {":qts": qts},
-                            )
+                        sqlx::query("UPDATE update_state SET qts = ?")
+                            .bind(qts)
+                            .execute(&mut *tx)
                             .await
                             .unwrap();
                     } else {
-                        transaction
-                            .execute(
-                                "INSERT INTO update_state VALUES (0, :qts, 0, 0)",
-                                named_params! {":qts": qts},
-                            )
-                            .await
-                            .unwrap();
+                        sqlx::query(
+                            "INSERT INTO update_state(pts, qts, date, seq)
+                                VALUES (0, ?, 0, 0)",
+                        )
+                        .bind(qts)
+                        .execute(&mut *tx)
+                        .await
+                        .unwrap();
                     }
                 }
                 UpdateState::Channel { id, pts } => {
-                    transaction
-                        .execute(
-                            "INSERT OR REPLACE INTO channel_state VALUES (:peer_id, :pts)",
-                            named_params! {
-                                ":peer_id": id,
-                                ":pts": pts,
-                            },
-                        )
-                        .await
-                        .unwrap();
+                    sqlx::query(
+                        "INSERT OR REPLACE INTO channel_state(peer_id, pts)
+                            VALUES (?, ?)",
+                    )
+                    .bind(id)
+                    .bind(pts)
+                    .execute(&mut *tx)
+                    .await
+                    .unwrap();
                 }
             }
 
-            transaction.commit().await.unwrap();
+            tx.commit().await.unwrap();
         })
     }
 }

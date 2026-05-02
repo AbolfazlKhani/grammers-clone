@@ -18,7 +18,10 @@ futures-core = "0.3.32"
 grammers-tl-types = { path = "../grammers-tl-types", version = "0.9.0" }
 log = "0.4.29"
 
-libsql = { version = "0.9.29", default-features = false, features = ["core"], optional = true }
+sqlx = { version = "0.8", features = [
+    "runtime-tokio",
+    "sqlite",
+], optional = true }
 tokio = { version = "1.49.0", default-features = false, features = ["sync"] }
 
 serde = { version = "1", features = ["derive"], optional = true }
@@ -26,9 +29,12 @@ serde_with = { version = "3", features = ["hex"], optional = true }
 
 [dev-dependencies]
 toml = "1.0.3"
-tokio = { version = "1.49.0", default-features = false, features = ["sync", "rt"] }
+tokio = { version = "1.49.0", default-features = false, features = [
+    "sync",
+    "rt",
+] }
 
 [features]
 default = ["sqlite-storage"]
-sqlite-storage = ["dep:libsql"]
+sqlite-storage = ["dep:sqlx"]
 serde = ["dep:serde", "dep:serde_with"]
